@@ -53,7 +53,13 @@ int main(int argc, char **argv) {
   std::cout << "Client connected\n";
 
   std::string res = "+PONG\r\n";
-  send(client_fd, res.c_str(), res.length(), 0);
+  std::array<char, 1024> in_buffer{};
+
+  while (true)
+  {
+    recv(client_fd, in_buffer.data(), in_buffer.size(), 0);
+    send(client_fd, res.c_str(), res.length(), 0);
+  }
 
   close(client_fd);
   close(server_fd);
