@@ -8,6 +8,35 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <array>
+#include <thread>
+#include <vector>
+
+class Rel
+{
+  std::string res = "+PONG\r\n";
+  std::array<char, 1024> in_buffer{};
+
+  int client_fd;
+  sockaddr_in client_addr;
+  socklen_t client_addr_len;
+
+  public:
+  Rel(const int fd, const sockaddr_in client_addr) : client_fd(fd), client_addr(client_addr),
+                                                     client_addr_len(sizeof(client_addr))
+  {
+  }
+
+  void operator()()
+  {
+    while (true)
+    {
+      recvfrom(client_fd, in_buffer.data(), in_buffer.size(), 0, (sockaddr *) &client_addr, &client_addr_len);
+      sendto(client_fd, res.c_str(), res.length(), 0, (sockaddr *) &client_addr, client_addr_len);
+    }
+
+    close(client_fd); // currently unused
+  }
+};
 
 int main(int argc, char **argv) {
   // Flush after every std::cout / std::cerr
@@ -43,27 +72,31 @@ int main(int argc, char **argv) {
     std::cerr << "listen failed\n";
     return 1;
   }
-  
-  struct sockaddr_in client_addr;
-  int client_addr_len = sizeof(client_addr);
-  std::cout << "Waiting for a client to connect...\n";
 
-  // You can use print statements as follows for debugging, they'll be visible when running tests.
-  std::cout << "Logs from your program will appear here!\n";
-  int client_fd = accept(server_fd, (struct sockaddr *) &client_addr, (socklen_t *) &client_addr_len);
-  std::cout << "Client connected\n";
+  std::vector<std::thread> rels;
 
-  std::string res = "+PONG\r\n";
-  std::array<char, 1024> in_buffer{};
-
-  while (true)
+  std::thread rel_adder([server_fd, &rels]()
   {
-    recv(client_fd, in_buffer.data(), in_buffer.size(), 0);
-    send(client_fd, res.c_str(), res.length(), 0);
-  }
+    while (true)
+    {
+      sockaddr_in client_addr{};
+      int client_addr_len = sizeof(client_addr);
+      std::cout << "Waiting for a client to connect...\n";
 
-  close(client_fd);
+      int client_fd = accept(server_fd, (struct sockaddr *) &client_addr, (socklen_t *) &client_addr_len);
+      std::cout << "Client connected\n";
+
+      rels.emplace_back(Rel(client_fd, client_addr));
+
+      // some ending condition
+    }
+  });
+
+  rel_adder.join();
+  // also need a relation manager/ender
+
   close(server_fd);
+  std::cout << "Server terminated\n";
 
   return 0;
 }
