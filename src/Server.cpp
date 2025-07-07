@@ -30,11 +30,16 @@ class Rel
   {
     while (true)
     {
-      recvfrom(client_fd, in_buffer.data(), in_buffer.size(), 0, (sockaddr *) &client_addr, &client_addr_len);
+      int n = recvfrom(client_fd, in_buffer.data(), in_buffer.size(), 0, (sockaddr *) &client_addr, &client_addr_len);
+      if (n == 0)
+      {
+        break;
+      }
       sendto(client_fd, res.c_str(), res.length(), 0, (sockaddr *) &client_addr, client_addr_len);
     }
 
-    close(client_fd); // currently unused
+    close(client_fd);
+    std::cout << "Client disconnected\n";
   }
 };
 
