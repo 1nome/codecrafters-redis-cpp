@@ -7,14 +7,19 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-#include <array>
 #include <thread>
 #include <vector>
 
+#include "Command.h"
+#include "Resp.h"
+
+constexpr int buffer_size = 4096;
+
 class Rel
 {
-  std::string res = "+PONG\r\n";
-  std::array<char, 1024> in_buffer{};
+  std::string response;
+  std::stringstream in_stream{};
+  char in_buffer[buffer_size];
 
   int client_fd;
   sockaddr_in client_addr;
@@ -30,12 +35,22 @@ class Rel
   {
     while (true)
     {
-      int n = recvfrom(client_fd, in_buffer.data(), in_buffer.size(), 0, (sockaddr *) &client_addr, &client_addr_len);
+      int n = recvfrom(client_fd, in_buffer, buffer_size, 0, (sockaddr*)&client_addr,
+                       &client_addr_len);
+      // std::cout << n << std::endl;
       if (n == 0)
       {
         break;
       }
-      sendto(client_fd, res.c_str(), res.length(), 0, (sockaddr *) &client_addr, client_addr_len);
+
+      in_stream.str(in_buffer);
+      in_stream.clear();
+
+      RESP_data cmd = parse(in_stream);
+
+      response = process_command(cmd);
+
+      sendto(client_fd, response.c_str(), response.length(), 0, (sockaddr *) &client_addr, client_addr_len);
     }
 
     close(client_fd);

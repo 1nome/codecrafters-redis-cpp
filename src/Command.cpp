@@ -1,0 +1,41 @@
+#include "Command.h"
+#include "Resp.h"
+
+#include <unordered_map>
+
+typedef std::string (*Cmd)(const RESP_data&);
+
+std::string ping(const RESP_data& resp)
+{
+    if (resp.array.size() > 1)
+    {
+        return bulk_string(resp.array[1].string);
+    }
+    return simple_string("PONG");
+}
+
+std::string echo(const RESP_data& resp)
+{
+    if (resp.array.size() > 1)
+    {
+        return bulk_string(resp.array[1].string);
+    }
+    return bulk_string("");
+}
+
+const std::unordered_map<std::string, Cmd> cmd_map = {
+    {"PING", ping},
+    {"ECHO", echo}
+};
+
+std::string process_command(const RESP_data& resp)
+{
+    std::string cmd = resp.array[0].string;
+    std::transform(cmd.begin(), cmd.end(), cmd.begin(), toupper);
+    if (!cmd_map.contains(cmd))
+    {
+        // temp value
+        return bulk_string("");
+    }
+    return cmd_map.at(cmd)(resp);
+}
