@@ -2,6 +2,7 @@
 #include "Resp.h"
 
 #include <unordered_map>
+#include <algorithm>
 
 typedef std::string (*Cmd)(const RESP_data&);
 
