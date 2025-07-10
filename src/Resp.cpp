@@ -3,6 +3,7 @@
 #include <memory>
 #include <utility>
 #include <vector>
+#include <limits>
 
 std::string simple_string(const std::string& content)
 {
