@@ -1,5 +1,6 @@
 #include "Command.h"
 #include "Resp.h"
+#include "Database.h"
 
 #include <unordered_map>
 #include <algorithm>
@@ -24,9 +25,34 @@ std::string echo(const RESP_data& resp)
     return bulk_string("");
 }
 
+std::string set(const RESP_data& resp)
+{
+    if (resp.array.size() > 2)
+    {
+        key_vals[resp.array[1].string] = resp.array[2].string;
+        return OK_simple;
+    }
+    return bulk_string("");
+}
+
+std::string get(const RESP_data& resp)
+{
+    if (resp.array.size() > 1)
+    {
+        if (key_vals.contains(resp.array[1].string))
+        {
+            return bulk_string(key_vals[resp.array[1].string]);
+        }
+        return null_bulk_string;
+    }
+    return bulk_string("");
+}
+
 const std::unordered_map<std::string, Cmd> cmd_map = {
     {"PING", ping},
-    {"ECHO", echo}
+    {"ECHO", echo},
+    {"SET", set},
+    {"GET", get}
 };
 
 std::string process_command(const RESP_data& resp)
