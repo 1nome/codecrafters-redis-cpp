@@ -30,7 +30,7 @@ std::string array(const std::vector<std::string>& elements)
     std::string res = "*" + std::to_string(elements.size()) + CRLF;
     for (const auto& element : elements)
     {
-        res += element + CRLF;
+        res += element;
     }
     return res;
 }

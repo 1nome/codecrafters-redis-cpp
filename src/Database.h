@@ -8,5 +8,6 @@
 typedef std::chrono::time_point<std::chrono::system_clock> Timestamp;
 
 extern std::unordered_map<std::string, std::pair<std::string, Timestamp>> key_vals;
+extern std::unordered_map<std::string, std::string> config_key_vals;
 
 #endif //DATABASE_H

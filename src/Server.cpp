@@ -12,6 +12,7 @@
 
 #include "Command.h"
 #include "Resp.h"
+#include "Args.h"
 
 constexpr int buffer_size = 4096;
 
@@ -37,7 +38,6 @@ class Rel
     {
       int n = recvfrom(client_fd, in_buffer, buffer_size, 0, (sockaddr*)&client_addr,
                        &client_addr_len);
-      // std::cout << n << std::endl;
       if (n == 0)
       {
         break;
@@ -91,6 +91,11 @@ int main(int argc, char **argv) {
   if (listen(server_fd, connection_backlog) != 0) {
     std::cerr << "listen failed\n";
     return 1;
+  }
+
+  if (!process_args(argc, argv))
+  {
+    std::cerr << "Failed to apply at least one argument\n";
   }
 
   std::vector<std::thread> rels;
