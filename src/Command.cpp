@@ -200,6 +200,22 @@ std::string replconf(const RESP_data& resp)
     return OK_simple;
 }
 
+std::string psync(const RESP_data& resp)
+{
+    if (resp.array.size() < 3)
+    {
+        return bulk_string("");
+    }
+
+    if (resp.array[1].string == "?" && resp.array[2].string == "-1")
+    {
+        return simple_string("FULLRESYNC " + master_replid + " " + std::to_string(master_repl_offset));
+    }
+
+    // temp
+    return bulk_string("");
+}
+
 const std::unordered_map<std::string, Cmd> cmd_map = {
     {"PING", ping},
     {"ECHO", echo},
@@ -208,7 +224,8 @@ const std::unordered_map<std::string, Cmd> cmd_map = {
     {"CONFIG", config},
     {"KEYS", keys},
     {"INFO", info},
-    {"REPLCONF", replconf}
+    {"REPLCONF", replconf},
+    {"PSYNC", psync}
 };
 
 std::string process_command(const RESP_data& resp)
