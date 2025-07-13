@@ -115,6 +115,7 @@ int main(int argc, char **argv) {
       return 1;
     }
     send_handshake(master_fd);
+    std::cout << "Sent handshake\n";
   }
   else
   {

@@ -59,5 +59,6 @@ struct RESP_data
 };
 
 RESP_data parse(std::stringstream& input);
+std::string command(const std::vector<std::string>& args);
 
 #endif //RESP_H

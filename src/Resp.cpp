@@ -188,3 +188,13 @@ RESP_data parse(std::stringstream& input)
     next_line();
     return data;
 }
+
+std::string command(const std::vector<std::string>& args)
+{
+    std::string res = "*" + std::to_string(args.size()) + CRLF;
+    for (const auto& arg : args)
+    {
+        res += bulk_string(arg);
+    }
+    return res;
+}
