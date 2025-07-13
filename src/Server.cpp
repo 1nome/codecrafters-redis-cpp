@@ -13,6 +13,7 @@
 #include "Command.h"
 #include "Resp.h"
 #include "Args.h"
+#include "Database.h"
 
 constexpr int buffer_size = 4096;
 
@@ -97,6 +98,7 @@ int main(int argc, char **argv) {
   {
     std::cerr << "Failed to apply at least one argument\n";
   }
+  read_rdb();
 
   std::vector<std::thread> rels;
 

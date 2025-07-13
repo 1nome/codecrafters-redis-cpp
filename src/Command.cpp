@@ -4,6 +4,8 @@
 
 #include <unordered_map>
 #include <algorithm>
+#include <iostream>
+#include <ranges>
 
 typedef std::string (*Cmd)(const RESP_data&);
 
@@ -39,8 +41,11 @@ std::string set(const RESP_data& resp)
         return bulk_string("");
     }
 
-    key_vals[resp.array[1].string].first = resp.array[2].string;
-    key_vals[resp.array[1].string].second = Timestamp::max();
+    key_vals[resp.array[1].string] = resp.array[2].string;
+    if (key_expiry.contains(resp.array[1].string))
+    {
+        key_expiry.erase(resp.array[1].string);
+    }
 
     if (resp.array.size() > 4)
     {
@@ -48,12 +53,31 @@ std::string set(const RESP_data& resp)
         to_upper(mod);
         if (mod == "PX")
         {
-            key_vals[resp.array[1].string].second = std::chrono::system_clock::now() + std::chrono::milliseconds(
+            key_expiry[resp.array[1].string] = std::chrono::system_clock::now() + std::chrono::milliseconds(
             std::stoi(resp.array[4].string));
         }
     }
 
     return OK_simple;
+}
+
+bool is_active(const std::string& key)
+{
+    if (!key_expiry.contains(key))
+    {
+        return true;
+    }
+    if (key_expiry[key] >= std::chrono::system_clock::now())
+    {
+        return true;
+    }
+    return false;
+}
+
+void remove_key(const std::string& key)
+{
+    key_expiry.erase(key);
+    key_vals.erase(key);
 }
 
 std::string get(const RESP_data& resp)
@@ -65,10 +89,11 @@ std::string get(const RESP_data& resp)
 
     if (key_vals.contains(resp.array[1].string))
     {
-        if (key_vals[resp.array[1].string].second >= std::chrono::system_clock::now())
+        if (is_active(resp.array[1].string))
         {
-            return bulk_string(key_vals[resp.array[1].string].first);
+            return bulk_string(key_vals[resp.array[1].string]);
         }
+        remove_key(resp.array[1].string);
     }
     return null_bulk_string;
 }
@@ -110,12 +135,45 @@ std::string config(const RESP_data& resp)
     return config_cmd_map.at(cmd)(resp);
 }
 
+std::string keys(const RESP_data& resp)
+{
+    if (resp.array.size() < 2)
+    {
+        return bulk_string("");
+    }
+
+    if (resp.array[1].string != "*")
+    {
+        return bulk_string("Filtering not supported yet :)");
+    }
+
+    std::vector<std::string> ret;
+    std::vector<std::string> expired_keys;
+    for (const auto& key : key_vals | std::views::keys)
+    {
+        if (is_active(key))
+        {
+            ret.push_back(bulk_string(key));
+        }
+        else
+        {
+            expired_keys.push_back(key);
+        }
+    }
+    for (const auto& key : expired_keys)
+    {
+        remove_key(key);
+    }
+    return array(ret);
+}
+
 const std::unordered_map<std::string, Cmd> cmd_map = {
     {"PING", ping},
     {"ECHO", echo},
     {"SET", set},
     {"GET", get},
-    {"CONFIG", config}
+    {"CONFIG", config},
+    {"KEYS", keys}
 };
 
 std::string process_command(const RESP_data& resp)
