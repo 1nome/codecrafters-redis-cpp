@@ -7,7 +7,9 @@
 
 std::unordered_map<std::string, std::string> key_vals;
 std::unordered_map<std::string, Timestamp> key_expiry;
-std::unordered_map<std::string, std::string> config_key_vals;
+std::unordered_map<std::string, std::string> config_key_vals = {
+    {"port", "6379"}
+};
 
 enum Special_type
 {

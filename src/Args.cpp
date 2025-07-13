@@ -27,9 +27,21 @@ bool dbfilename(const int argc, char** argv, int& i)
     return true;
 }
 
+bool port(const int argc, char** argv, int& i)
+{
+    i++;
+    if (i >= argc)
+    {
+        return false;
+    }
+    config_key_vals["port"] = std::string(argv[i]);
+    return true;
+}
+
 const std::unordered_map<std::string, Arg> arg_map = {
     {"--dir", dir},
-    {"--dbfilename", dbfilename}
+    {"--dbfilename", dbfilename},
+    {"--port", port}
 };
 
 bool process_args(const int argc, char** argv)
