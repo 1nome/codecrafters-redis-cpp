@@ -1,6 +1,7 @@
 #include "Command.h"
 #include "Resp.h"
 #include "Database.h"
+#include "Replication.h"
 
 #include <unordered_map>
 #include <algorithm>
@@ -188,6 +189,8 @@ std::string info(const RESP_data& resp)
     {
         str += "role:master\n";
     }
+    str += "master_replid:" + master_replid + "\n";
+    str += "master_repl_offset:" + std::to_string(master_repl_offset) + "\n";
 
     return bulk_string(str);
 }
