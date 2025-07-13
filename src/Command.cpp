@@ -195,6 +195,11 @@ std::string info(const RESP_data& resp)
     return bulk_string(str);
 }
 
+std::string replconf(const RESP_data& resp)
+{
+    return OK_simple;
+}
+
 const std::unordered_map<std::string, Cmd> cmd_map = {
     {"PING", ping},
     {"ECHO", echo},
@@ -202,7 +207,8 @@ const std::unordered_map<std::string, Cmd> cmd_map = {
     {"GET", get},
     {"CONFIG", config},
     {"KEYS", keys},
-    {"INFO", info}
+    {"INFO", info},
+    {"REPLCONF", replconf}
 };
 
 std::string process_command(const RESP_data& resp)
