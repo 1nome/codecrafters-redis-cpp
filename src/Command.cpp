@@ -167,13 +167,39 @@ std::string keys(const RESP_data& resp)
     return array(ret);
 }
 
+std::string info(const RESP_data& resp)
+{
+    std::string str;
+    if (resp.array.size() > 1)
+    {
+        if (resp.array[1].string != "replication")
+        {
+            return bulk_string("Filtering not supported yet :)\n");
+        }
+    }
+
+    str += "# Replication\n";
+
+    if (config_key_vals.contains("replicaof"))
+    {
+        str += "role:slave\n";
+    }
+    else
+    {
+        str += "role:master\n";
+    }
+
+    return bulk_string(str);
+}
+
 const std::unordered_map<std::string, Cmd> cmd_map = {
     {"PING", ping},
     {"ECHO", echo},
     {"SET", set},
     {"GET", get},
     {"CONFIG", config},
-    {"KEYS", keys}
+    {"KEYS", keys},
+    {"INFO", info}
 };
 
 std::string process_command(const RESP_data& resp)
