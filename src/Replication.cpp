@@ -31,4 +31,7 @@ void send_handshake(const int master_fd)
     send(master_fd, str3.c_str(), str3.size(), 0);
     recv(master_fd, in_buffer, buffer_size, 0);
 
+    const std::string str4 = command({"PSYNC", "?", "-1"});
+    send(master_fd, str4.c_str(), str4.size(), 0);
+    recv(master_fd, in_buffer, buffer_size, 0);
 }
