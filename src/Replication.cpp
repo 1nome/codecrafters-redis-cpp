@@ -13,6 +13,6 @@ bool is_slave()
 
 void send_handshake(const int master_fd)
 {
-    const std::string str1 = array({"PING"});
+    const std::string str1 = array({bulk_string("PING")});
     send(master_fd, str1.c_str(), str1.size(), 0);
 }
