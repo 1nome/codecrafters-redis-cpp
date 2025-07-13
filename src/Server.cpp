@@ -14,6 +14,7 @@
 #include "Resp.h"
 #include "Args.h"
 #include "Database.h"
+#include "Replication.h"
 
 constexpr int buffer_size = 4096;
 
@@ -24,12 +25,9 @@ class Rel
   char in_buffer[buffer_size];
 
   int client_fd;
-  sockaddr_in client_addr;
-  socklen_t client_addr_len;
 
   public:
-  Rel(const int fd, const sockaddr_in client_addr) : client_fd(fd), client_addr(client_addr),
-                                                     client_addr_len(sizeof(client_addr))
+  Rel(const int fd) : client_fd(fd)
   {
   }
 
@@ -37,8 +35,7 @@ class Rel
   {
     while (true)
     {
-      int n = recvfrom(client_fd, in_buffer, buffer_size, 0, (sockaddr*)&client_addr,
-                       &client_addr_len);
+      int n = recv(client_fd, in_buffer, buffer_size, 0);
       if (n == 0)
       {
         break;
@@ -51,7 +48,7 @@ class Rel
 
       response = process_command(cmd);
 
-      sendto(client_fd, response.c_str(), response.length(), 0, (sockaddr *) &client_addr, client_addr_len);
+      send(client_fd, response.c_str(), response.length(), 0);
     }
 
     close(client_fd);
@@ -89,7 +86,7 @@ int main(int argc, char **argv) {
   server_addr.sin_port = htons(std::stoi(config_key_vals["port"]));
   
   if (bind(server_fd, (struct sockaddr *) &server_addr, sizeof(server_addr)) != 0) {
-    std::cerr << "Failed to bind to port 6379\n";
+    std::cerr << "Failed to bind to port " + config_key_vals["port"] + "\n";
     return 1;
   }
   
@@ -99,7 +96,30 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  read_rdb();
+  if (is_slave())
+  {
+    int master_fd = socket(AF_INET, SOCK_STREAM, 0);
+    const std::string str = config_key_vals["replicaof"];
+    const std::string madd = str.substr(0, str.find(' '));
+    const std::string mp = str.substr(str.rfind(' ') + 1);
+
+    sockaddr_in master_addr{};
+    master_addr.sin_family = AF_INET;
+    inet_pton(AF_INET, madd.c_str(), &master_addr.sin_addr);
+    master_addr.sin_port = htons(std::stoi(mp));
+
+    if (connect(master_fd, (sockaddr *) &master_addr, sizeof(master_addr)) != 0)
+    {
+      const int err = errno;
+      std::cerr << "Failed to connect to master:\n" << strerror(err) << "\n";
+      return 1;
+    }
+    send_handshake(master_fd);
+  }
+  else
+  {
+    read_rdb();
+  }
 
   std::vector<std::thread> rels;
 
@@ -114,7 +134,7 @@ int main(int argc, char **argv) {
       int client_fd = accept(server_fd, (struct sockaddr *) &client_addr, (socklen_t *) &client_addr_len);
       std::cout << "Client connected\n";
 
-      rels.emplace_back(Rel(client_fd, client_addr));
+      rels.emplace_back(Rel(client_fd));
 
       // some ending condition
     }

@@ -181,7 +181,7 @@ std::string info(const RESP_data& resp)
 
     str += "# Replication\n";
 
-    if (config_key_vals.contains("replicaof"))
+    if (is_slave())
     {
         str += "role:slave\n";
     }
