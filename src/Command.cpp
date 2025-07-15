@@ -5,14 +5,13 @@
 
 #include <unordered_map>
 #include <algorithm>
-#include <iostream>
 #include <ranges>
 
 typedef std::string (*Cmd)(const RESP_data&);
 
 void to_upper(std::string& s)
 {
-    std::transform(s.begin(), s.end(), s.begin(), toupper);
+    std::ranges::transform(s, s.begin(), toupper);
 }
 
 std::string ping(const RESP_data& resp)
@@ -209,6 +208,7 @@ std::string psync(const RESP_data& resp)
 
     if (resp.array[1].string == "?" && resp.array[2].string == "-1")
     {
+        send_rdb = true;
         return simple_string("FULLRESYNC " + master_replid + " " + std::to_string(master_repl_offset));
     }
 

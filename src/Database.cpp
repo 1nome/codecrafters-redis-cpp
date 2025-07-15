@@ -20,7 +20,7 @@ enum Special_type
     Compressed
 };
 
-Special_type read_length(std::ifstream& file, unsigned int& val)
+Special_type read_length(std::basic_istream<char>& file, unsigned int& val)
 {
     char byte;
     file.read(&byte, 1);
@@ -62,7 +62,7 @@ Special_type read_length(std::ifstream& file, unsigned int& val)
     }
 }
 
-std::string read_string(std::ifstream& file)
+std::string read_string(std::basic_istream<char>& file)
 {
     std::string str;
     switch (unsigned int len; read_length(file, len))
@@ -89,7 +89,7 @@ std::string read_string(std::ifstream& file)
     return str;
 }
 
-std::string read_key_val(std::ifstream& file, unsigned char byte)
+std::string read_key_val(std::basic_istream<char>& file, const unsigned char byte)
 {
     std::string key = read_string(file);
     switch (byte)
@@ -104,85 +104,103 @@ std::string read_key_val(std::ifstream& file, unsigned char byte)
     return key;
 }
 
-void read_rdb()
+void read_rdb(std::basic_istream<char>* s)
 {
-    if (!config_key_vals.contains("dir") || !config_key_vals.contains("dbfilename"))
+    std::ifstream* file = nullptr;
+    if (s == nullptr)
     {
-        std::cout << "Database file not loaded\n";
-        return;
-    }
-    std::ifstream file(config_key_vals["dir"] + "/" + config_key_vals["dbfilename"], std::ios::binary);
+        if (!config_key_vals.contains("dir") || !config_key_vals.contains("dbfilename"))
+        {
+            std::cout << "Database file not loaded\n";
+            return;
+        }
+        file = new std::ifstream(config_key_vals["dir"] + "/" + config_key_vals["dbfilename"], std::ios::binary);
 
-    if (not file.is_open()) {
-        std::cerr << "Unable to open rdb file\n";
-        return;
+        if (not file->is_open()) {
+            std::cerr << "Unable to open rdb file\n";
+            delete file;
+            return;
+        }
+        s = file;
     }
 
     char read_buffer[6];
 
-    file.read(read_buffer, 5);
+    s->read(read_buffer, 5);
     read_buffer[5] = '\0';
     if (std::string(read_buffer) != "REDIS")
     {
         std::cerr << "Supplied file is not an RDB file\n";
-        file.close();
+        if (file != nullptr)
+        {
+            file->close();
+            delete file;
+        }
         return;
     }
 
-    file.read(read_buffer, 4);
+    s->read(read_buffer, 4);
     read_buffer[4] = '\0';
     const int version = std::stoi(read_buffer);
 
     std::string aux_key;
     std::string aux_val;
-    while (not file.eof())
+    while (not s->eof())
     {
         unsigned char byte;
-        file.read(reinterpret_cast<std::istream::char_type*>(&byte), 1);
+        s->read(reinterpret_cast<std::istream::char_type*>(&byte), 1);
 
         switch (byte)
         {
         case 0xFF:
             unsigned long long crc64;
-            file.read(reinterpret_cast<std::istream::char_type*>(&crc64), 8);
+            s->read(reinterpret_cast<std::istream::char_type*>(&crc64), 8);
             // won't bother with checking yet
-            file.close();
+            if (file != nullptr)
+            {
+                file->close();
+                delete file;
+            }
             return;
         case 0xFE:
             unsigned int db_sel;
-            read_length(file, db_sel);
+            read_length(*s, db_sel);
             // we currently ignore this as there is only one database present
             break;
         case 0xFD:
             unsigned int expire_sec;
-            file.read(reinterpret_cast<std::istream::char_type*>(&expire_sec), 4);
-            file.read(reinterpret_cast<std::istream::char_type*>(&byte), 1);
-            key_expiry[read_key_val(file, byte)] = Timestamp(std::chrono::seconds(expire_sec));
+            s->read(reinterpret_cast<std::istream::char_type*>(&expire_sec), 4);
+            s->read(reinterpret_cast<std::istream::char_type*>(&byte), 1);
+            key_expiry[read_key_val(*s, byte)] = Timestamp(std::chrono::seconds(expire_sec));
             break;
         case 0xFC:
             unsigned long long expire_msec;
-            file.read(reinterpret_cast<std::istream::char_type*>(&expire_msec), 8);
-            file.read(reinterpret_cast<std::istream::char_type*>(&byte), 1);
-            key_expiry[read_key_val(file, byte)] = Timestamp(std::chrono::milliseconds(expire_msec));
+            s->read(reinterpret_cast<std::istream::char_type*>(&expire_msec), 8);
+            s->read(reinterpret_cast<std::istream::char_type*>(&byte), 1);
+            key_expiry[read_key_val(*s, byte)] = Timestamp(std::chrono::milliseconds(expire_msec));
             break;
         case 0xFB:
             unsigned int key_val_size;
-            read_length(file, key_val_size);
+            read_length(*s, key_val_size);
             unsigned int expiry_size;
-            read_length(file, expiry_size);
+            read_length(*s, expiry_size);
             // could use these to reserve space in the db; not used yet
             break;
         case 0xFA:
-            aux_key = read_string(file);
-            aux_val = read_string(file);
+            aux_key = read_string(*s);
+            aux_val = read_string(*s);
             // currently do nothing with this
             break;
         default:
-            read_key_val(file, byte);
+            read_key_val(*s, byte);
             break;
         }
     }
 
     std::cerr << "Supplied file is broken\n";
-    file.close();
+    if (file != nullptr)
+    {
+        file->close();
+        delete file;
+    }
 }

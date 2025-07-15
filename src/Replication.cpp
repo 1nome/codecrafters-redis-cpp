@@ -8,10 +8,23 @@
 
 std::string master_replid = "VeryRandomStringThatIsFortyCharactersLon";
 size_t master_repl_offset = 0;
+bool send_rdb = false;
 
 bool is_slave()
 {
     return config_key_vals.contains("replicaof");
+}
+
+int find(const char* s, const char c, const int start, const int end)
+{
+    for (int i = start; i < end; i++)
+    {
+        if (s[i] == c)
+        {
+            return i;
+        }
+    }
+    return -1;
 }
 
 void send_handshake(const int master_fd)
@@ -21,17 +34,43 @@ void send_handshake(const int master_fd)
 
     const std::string str1 = command({"PING"});
     send(master_fd, str1.c_str(), str1.size(), 0);
-    recv(master_fd, in_buffer, buffer_size, 0);
+    recv(master_fd, in_buffer, buffer_size, 0); // pong
 
     const std::string str2 = command({"REPLCONF", "listening-port", config_key_vals["port"]});
     send(master_fd, str2.c_str(), str2.size(), 0);
-    recv(master_fd, in_buffer, buffer_size, 0);
+    recv(master_fd, in_buffer, buffer_size, 0); // ok
 
     const std::string str3 = command({"REPLCONF", "capa", "psync2"});
     send(master_fd, str3.c_str(), str3.size(), 0);
-    recv(master_fd, in_buffer, buffer_size, 0);
+    recv(master_fd, in_buffer, buffer_size, 0); // ok
 
     const std::string str4 = command({"PSYNC", "?", "-1"});
     send(master_fd, str4.c_str(), str4.size(), 0);
-    recv(master_fd, in_buffer, buffer_size, 0);
+    unsigned int r = recv(master_fd, in_buffer, buffer_size, 0); // fullresync
+
+    int s = find(in_buffer, '$', 0, r);
+    if (s == -1)
+    {
+        recv(master_fd, in_buffer, buffer_size, 0);
+        s = 0;
+    }
+    s += 1;
+    char* end;
+    const long n = std::strtol(in_buffer + s, &end, 10);
+    std::stringstream ss;
+    ss.write(end + 2, n);
+    read_rdb(&ss);
 }
+
+std::vector<unsigned char> make_rdb()
+{
+    // currently returns only an empty db
+    return {'$', '8', '8', '\r', '\n',
+    0x52, 0x45, 0x44, 0x49, 0x53, 0x30, 0x30, 0x31, 0x31, 0xfa, 0x09, 0x72, 0x65, 0x64, 0x69, 0x73, //|REDIS0011..redis|
+    0x2d, 0x76, 0x65, 0x72, 0x05, 0x37, 0x2e, 0x32, 0x2e, 0x30, 0xfa, 0x0a, 0x72, 0x65, 0x64, 0x69, //|-ver.7.2.0..redi|
+    0x73, 0x2d, 0x62, 0x69, 0x74, 0x73, 0xc0, 0x40, 0xfa, 0x05, 0x63, 0x74, 0x69, 0x6d, 0x65, 0xc2, //|s-bits.@..ctime.|
+    0x6d, 0x08, 0xbc, 0x65, 0xfa, 0x08, 0x75, 0x73, 0x65, 0x64, 0x2d, 0x6d, 0x65, 0x6d, 0xc2, 0xb0, //|m..e..used-mem..|
+    0xc4, 0x10, 0x00, 0xfa, 0x08, 0x61, 0x6f, 0x66, 0x2d, 0x62, 0x61, 0x73, 0x65, 0xc0, 0x00, 0xff, //|.....aof-base...|
+    0xf0, 0x6e, 0x3b, 0xfe, 0xc0, 0xff, 0x5a, 0xa2};                                                //|.n;...Z.|
+}
+

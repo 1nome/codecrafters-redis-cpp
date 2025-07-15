@@ -1,5 +1,4 @@
 #include <iostream>
-#include <cstdlib>
 #include <string>
 #include <cstring>
 #include <unistd.h>
@@ -22,12 +21,12 @@ class Rel
 {
   std::string response;
   std::stringstream in_stream{};
-  char in_buffer[buffer_size];
+  char in_buffer[buffer_size]{};
 
   int client_fd;
 
   public:
-  Rel(const int fd) : client_fd(fd)
+  explicit Rel(const int fd) : client_fd(fd)
   {
   }
 
@@ -35,7 +34,7 @@ class Rel
   {
     while (true)
     {
-      int n = recv(client_fd, in_buffer, buffer_size, 0);
+      unsigned int n = recv(client_fd, in_buffer, buffer_size, 0);
       if (n == 0)
       {
         break;
@@ -49,6 +48,12 @@ class Rel
       response = process_command(cmd);
 
       send(client_fd, response.c_str(), response.length(), 0);
+      if (send_rdb)
+      {
+        send_rdb = false;
+        std::vector<unsigned char> data = make_rdb();
+        send(client_fd, data.data(), data.size(), 0);
+      }
     }
 
     close(client_fd);
@@ -56,7 +61,7 @@ class Rel
   }
 };
 
-int main(int argc, char **argv) {
+int main(const int argc, char **argv) {
   // Flush after every std::cout / std::cerr
   std::cout << std::unitbuf;
   std::cerr << std::unitbuf;
@@ -74,31 +79,30 @@ int main(int argc, char **argv) {
   
   // Since the tester restarts your program quite often, setting SO_REUSEADDR
   // ensures that we don't run into 'Address already in use' errors
-  int reuse = 1;
+  constexpr int reuse = 1;
   if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
     std::cerr << "setsockopt failed\n";
     return 1;
   }
   
-  struct sockaddr_in server_addr;
+  sockaddr_in server_addr{};
   server_addr.sin_family = AF_INET;
   server_addr.sin_addr.s_addr = INADDR_ANY;
   server_addr.sin_port = htons(std::stoi(config_key_vals["port"]));
   
-  if (bind(server_fd, (struct sockaddr *) &server_addr, sizeof(server_addr)) != 0) {
+  if (bind(server_fd, reinterpret_cast<sockaddr*>(&server_addr), sizeof(server_addr)) != 0) {
     std::cerr << "Failed to bind to port " + config_key_vals["port"] + "\n";
     return 1;
   }
-  
-  int connection_backlog = 5;
-  if (listen(server_fd, connection_backlog) != 0) {
+
+  if (constexpr int connection_backlog = 5; listen(server_fd, connection_backlog) != 0) {
     std::cerr << "listen failed\n";
     return 1;
   }
 
   if (is_slave())
   {
-    int master_fd = socket(AF_INET, SOCK_STREAM, 0);
+    const int master_fd = socket(AF_INET, SOCK_STREAM, 0);
     const std::string str = config_key_vals["replicaof"];
     const std::string madd = str.substr(0, str.find(' '));
     const std::string mp = str.substr(str.rfind(' ') + 1);
@@ -108,7 +112,7 @@ int main(int argc, char **argv) {
     inet_pton(AF_INET, madd.c_str(), &master_addr.sin_addr);
     master_addr.sin_port = htons(std::stoi(mp));
 
-    if (connect(master_fd, (sockaddr *) &master_addr, sizeof(master_addr)) != 0)
+    if (connect(master_fd, reinterpret_cast<sockaddr*>(&master_addr), sizeof(master_addr)) != 0)
     {
       const int err = errno;
       std::cerr << "Failed to connect to master:\n" << strerror(err) << "\n";
@@ -132,7 +136,7 @@ int main(int argc, char **argv) {
       int client_addr_len = sizeof(client_addr);
       std::cout << "Waiting for a client to connect...\n";
 
-      int client_fd = accept(server_fd, (struct sockaddr *) &client_addr, (socklen_t *) &client_addr_len);
+      const int client_fd = accept(server_fd, reinterpret_cast<sockaddr*>(&client_addr), reinterpret_cast<socklen_t*>(&client_addr_len));
       std::cout << "Client connected\n";
 
       rels.emplace_back(Rel(client_fd));
