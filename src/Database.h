@@ -4,12 +4,13 @@
 #include <string>
 #include <unordered_map>
 #include <chrono>
+#include <mutex>
 
 typedef std::chrono::time_point<std::chrono::system_clock> Timestamp;
 
-extern std::unordered_map<std::string, std::string> key_vals;
-extern std::unordered_map<std::string, Timestamp> key_expiry;
-extern std::unordered_map<std::string, std::string> config_key_vals;
+std::unordered_map<std::string, std::string>& key_vals();
+std::unordered_map<std::string, Timestamp>& key_expiry();
+std::unordered_map<std::string, std::string>& config_key_vals();
 
 void read_rdb(std::basic_istream<char>* s = nullptr);
 

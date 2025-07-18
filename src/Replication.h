@@ -2,11 +2,17 @@
 #define REPLICATION_H
 #include <string>
 #include <vector>
+#include <queue>
 
 extern std::string master_replid;
-extern size_t master_repl_offset;
+size_t& master_repl_offset();
 
-extern bool send_rdb;
+std::deque<std::pair<std::string, int>>& command_queue();
+int& slave_count();
+size_t& top_offset();
+void slave_disconnected();
+void add_command(const std::string& command);
+void remove_command();
 
 bool is_slave();
 

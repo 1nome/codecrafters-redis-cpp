@@ -7,15 +7,16 @@
 #include <algorithm>
 #include <ranges>
 
-typedef std::string (*Cmd)(const RESP_data&);
+typedef std::string (*Cmd)(const RESP_data&, Rel_data&);
 
 void to_upper(std::string& s)
 {
     std::ranges::transform(s, s.begin(), toupper);
 }
 
-std::string ping(const RESP_data& resp)
+std::string ping(const RESP_data& resp, Rel_data& data)
 {
+    data.repeat = false;
     if (resp.array.size() > 1)
     {
         return bulk_string(resp.array[1].string);
@@ -24,8 +25,9 @@ std::string ping(const RESP_data& resp)
     return simple_string("PONG");
 }
 
-std::string echo(const RESP_data& resp)
+std::string echo(const RESP_data& resp, Rel_data& data)
 {
+    data.repeat = false;
     if (resp.array.size() < 2)
     {
         return bulk_string("");
@@ -34,17 +36,18 @@ std::string echo(const RESP_data& resp)
     return bulk_string(resp.array[1].string);
 }
 
-std::string set(const RESP_data& resp)
+std::string set(const RESP_data& resp, Rel_data& data)
 {
     if (resp.array.size() < 3)
     {
         return bulk_string("");
     }
 
-    key_vals[resp.array[1].string] = resp.array[2].string;
-    if (key_expiry.contains(resp.array[1].string))
+    data.repeat = true;
+    key_vals()[resp.array[1].string] = resp.array[2].string;
+    if (key_expiry().contains(resp.array[1].string))
     {
-        key_expiry.erase(resp.array[1].string);
+        key_expiry().erase(resp.array[1].string);
     }
 
     if (resp.array.size() > 4)
@@ -53,7 +56,7 @@ std::string set(const RESP_data& resp)
         to_upper(mod);
         if (mod == "PX")
         {
-            key_expiry[resp.array[1].string] = std::chrono::system_clock::now() + std::chrono::milliseconds(
+            key_expiry()[resp.array[1].string] = std::chrono::system_clock::now() + std::chrono::milliseconds(
             std::stoi(resp.array[4].string));
         }
     }
@@ -63,11 +66,11 @@ std::string set(const RESP_data& resp)
 
 bool is_active(const std::string& key)
 {
-    if (!key_expiry.contains(key))
+    if (!key_expiry().contains(key))
     {
         return true;
     }
-    if (key_expiry[key] >= std::chrono::system_clock::now())
+    if (key_expiry()[key] >= std::chrono::system_clock::now())
     {
         return true;
     }
@@ -76,37 +79,38 @@ bool is_active(const std::string& key)
 
 void remove_key(const std::string& key)
 {
-    key_expiry.erase(key);
-    key_vals.erase(key);
+    key_expiry().erase(key);
+    key_vals().erase(key);
 }
 
-std::string get(const RESP_data& resp)
+std::string get(const RESP_data& resp, Rel_data& data)
 {
+    data.repeat = false;
     if (resp.array.size() < 2)
     {
         return bulk_string("");
     }
 
-    if (key_vals.contains(resp.array[1].string))
+    if (key_vals().contains(resp.array[1].string))
     {
         if (is_active(resp.array[1].string))
         {
-            return bulk_string(key_vals[resp.array[1].string]);
+            return bulk_string(key_vals()[resp.array[1].string]);
         }
         remove_key(resp.array[1].string);
     }
     return null_bulk_string;
 }
 
-std::string config_get(const RESP_data& resp)
+std::string config_get(const RESP_data& resp, Rel_data& data)
 {
     std::vector<std::string> ret;
     for (size_t i = 2; i < resp.array.size(); i++)
     {
         ret.push_back(bulk_string(resp.array[i].string));
-        if (config_key_vals.contains(resp.array[i].string))
+        if (config_key_vals().contains(resp.array[i].string))
         {
-            ret.push_back(bulk_string(config_key_vals[resp.array[i].string]));
+            ret.push_back(bulk_string(config_key_vals()[resp.array[i].string]));
             continue;
         }
         ret.push_back(null_bulk_string);
@@ -118,8 +122,9 @@ const std::unordered_map<std::string, Cmd> config_cmd_map = {
     {"GET", config_get}
 };
 
-std::string config(const RESP_data& resp)
+std::string config(const RESP_data& resp, Rel_data& data)
 {
+    data.repeat = false;
     if (resp.array.size() < 2)
     {
         return bulk_string("");
@@ -132,11 +137,12 @@ std::string config(const RESP_data& resp)
         // temp value
         return bulk_string("");
     }
-    return config_cmd_map.at(cmd)(resp);
+    return config_cmd_map.at(cmd)(resp, data);
 }
 
-std::string keys(const RESP_data& resp)
+std::string keys(const RESP_data& resp, Rel_data& data)
 {
+    data.repeat = false;
     if (resp.array.size() < 2)
     {
         return bulk_string("");
@@ -149,7 +155,7 @@ std::string keys(const RESP_data& resp)
 
     std::vector<std::string> ret;
     std::vector<std::string> expired_keys;
-    for (const auto& key : key_vals | std::views::keys)
+    for (const auto& key : key_vals() | std::views::keys)
     {
         if (is_active(key))
         {
@@ -167,8 +173,9 @@ std::string keys(const RESP_data& resp)
     return array(ret);
 }
 
-std::string info(const RESP_data& resp)
+std::string info(const RESP_data& resp, Rel_data& data)
 {
+    data.repeat = false;
     std::string str;
     if (resp.array.size() > 1)
     {
@@ -189,18 +196,20 @@ std::string info(const RESP_data& resp)
         str += "role:master\n";
     }
     str += "master_replid:" + master_replid + "\n";
-    str += "master_repl_offset:" + std::to_string(master_repl_offset) + "\n";
+    str += "master_repl_offset:" + std::to_string(master_repl_offset()) + "\n";
 
     return bulk_string(str);
 }
 
-std::string replconf(const RESP_data& resp)
+std::string replconf(const RESP_data& resp, Rel_data& data)
 {
+    data.repeat = false;
     return OK_simple;
 }
 
-std::string psync(const RESP_data& resp)
+std::string psync(const RESP_data& resp, Rel_data& data)
 {
+    data.repeat = false;
     if (resp.array.size() < 3)
     {
         return bulk_string("");
@@ -208,8 +217,10 @@ std::string psync(const RESP_data& resp)
 
     if (resp.array[1].string == "?" && resp.array[2].string == "-1")
     {
-        send_rdb = true;
-        return simple_string("FULLRESYNC " + master_replid + " " + std::to_string(master_repl_offset));
+        data.send_rdb = true;
+        data.client_is_replica = true;
+        slave_count()++;
+        return simple_string("FULLRESYNC " + master_replid + " " + std::to_string(master_repl_offset()));
     }
 
     // temp
@@ -228,7 +239,7 @@ const std::unordered_map<std::string, Cmd> cmd_map = {
     {"PSYNC", psync}
 };
 
-std::string process_command(const RESP_data& resp)
+std::string process_command(const RESP_data& resp, Rel_data& data)
 {
     std::string cmd = resp.array[0].string;
     to_upper(cmd);
@@ -237,5 +248,5 @@ std::string process_command(const RESP_data& resp)
         // temp value
         return bulk_string("");
     }
-    return cmd_map.at(cmd)(resp);
+    return cmd_map.at(cmd)(resp, data);
 }

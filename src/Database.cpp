@@ -4,12 +4,17 @@
 #include <string>
 #include <fstream>
 #include <iostream>
+#include <mutex>
 
-std::unordered_map<std::string, std::string> key_vals;
-std::unordered_map<std::string, Timestamp> key_expiry;
-std::unordered_map<std::string, std::string> config_key_vals = {
+std::unordered_map<std::string, std::string> key_vals_map;
+std::unordered_map<std::string, Timestamp> key_expiry_map;
+std::unordered_map<std::string, std::string> config_key_vals_map = {
     {"port", "6379"}
 };
+
+std::mutex key_vals_lock;
+std::mutex key_expiry_lock;
+std::mutex config_key_vals_lock;
 
 enum Special_type
 {
@@ -95,7 +100,7 @@ std::string read_key_val(std::basic_istream<char>& file, const unsigned char byt
     switch (byte)
     {
     case 0:
-        key_vals[key] = read_string(file);
+        key_vals()[key] = read_string(file);
         break;
     default:
         std::cerr << "Value type not supported" << std::endl;
@@ -104,17 +109,35 @@ std::string read_key_val(std::basic_istream<char>& file, const unsigned char byt
     return key;
 }
 
+std::unordered_map<std::string, std::string>& key_vals()
+{
+    const std::lock_guard lock(key_vals_lock);
+    return key_vals_map;
+}
+
+std::unordered_map<std::string, Timestamp>& key_expiry()
+{
+    const std::lock_guard lock(key_expiry_lock);
+    return key_expiry_map;
+}
+
+std::unordered_map<std::string, std::string>& config_key_vals()
+{
+    const std::lock_guard lock(config_key_vals_lock);
+    return config_key_vals_map;
+}
+
 void read_rdb(std::basic_istream<char>* s)
 {
     std::ifstream* file = nullptr;
     if (s == nullptr)
     {
-        if (!config_key_vals.contains("dir") || !config_key_vals.contains("dbfilename"))
+        if (!config_key_vals().contains("dir") || !config_key_vals().contains("dbfilename"))
         {
             std::cout << "Database file not loaded\n";
             return;
         }
-        file = new std::ifstream(config_key_vals["dir"] + "/" + config_key_vals["dbfilename"], std::ios::binary);
+        file = new std::ifstream(config_key_vals()["dir"] + "/" + config_key_vals()["dbfilename"], std::ios::binary);
 
         if (not file->is_open()) {
             std::cerr << "Unable to open rdb file\n";
@@ -171,13 +194,13 @@ void read_rdb(std::basic_istream<char>* s)
             unsigned int expire_sec;
             s->read(reinterpret_cast<std::istream::char_type*>(&expire_sec), 4);
             s->read(reinterpret_cast<std::istream::char_type*>(&byte), 1);
-            key_expiry[read_key_val(*s, byte)] = Timestamp(std::chrono::seconds(expire_sec));
+            key_expiry()[read_key_val(*s, byte)] = Timestamp(std::chrono::seconds(expire_sec));
             break;
         case 0xFC:
             unsigned long long expire_msec;
             s->read(reinterpret_cast<std::istream::char_type*>(&expire_msec), 8);
             s->read(reinterpret_cast<std::istream::char_type*>(&byte), 1);
-            key_expiry[read_key_val(*s, byte)] = Timestamp(std::chrono::milliseconds(expire_msec));
+            key_expiry()[read_key_val(*s, byte)] = Timestamp(std::chrono::milliseconds(expire_msec));
             break;
         case 0xFB:
             unsigned int key_val_size;

@@ -24,7 +24,7 @@ bool process_args(const int argc, char** argv)
             {
                 return false;
             }
-            config_key_vals[arg.substr(2)] = std::string(argv[i]);
+            config_key_vals()[arg.substr(2)] = std::string(argv[i]);
         }
     }
     return true;

@@ -24,17 +24,44 @@ class Rel
   char in_buffer[buffer_size]{};
 
   int client_fd;
+  Rel_data data;
 
   public:
-  explicit Rel(const int fd) : client_fd(fd)
+  explicit Rel(const int fd, const bool is_replica = false) : client_fd(fd)
   {
+    data.is_replica = is_replica;
   }
 
   void operator()()
   {
     while (true)
     {
-      unsigned int n = recv(client_fd, in_buffer, buffer_size, 0);
+      if (data.client_is_replica)
+      {
+        if (top_offset() != data.local_offset)
+        {
+          std::this_thread::yield();
+          continue;
+        }
+        if (command_queue().empty())
+        {
+          std::this_thread::yield();
+          continue;
+        }
+        response = command_queue().front().first;
+        long n = send(client_fd, response.c_str(), response.length(), MSG_NOSIGNAL);
+        if (n == -1)
+        {
+          slave_disconnected();
+          remove_command();
+          break;
+        }
+        command_queue().front().second--;
+        data.local_offset++;
+        remove_command();
+        continue;
+      }
+      long n = recv(client_fd, in_buffer, buffer_size, 0);
       if (n == 0)
       {
         break;
@@ -45,19 +72,39 @@ class Rel
 
       RESP_data cmd = parse(in_stream);
 
-      response = process_command(cmd);
+      response = process_command(cmd, data);
 
-      send(client_fd, response.c_str(), response.length(), 0);
-      if (send_rdb)
+      if (data.repeat)
       {
-        send_rdb = false;
+        data.repeat = false;
+        add_command(in_stream.str());
+        master_repl_offset()++;
+      }
+      if (data.is_replica)
+      {
+        continue;
+      }
+      send(client_fd, response.c_str(), response.length(), 0);
+      if (data.send_rdb)
+      {
+        data.send_rdb = false;
         std::vector<unsigned char> data = make_rdb();
         send(client_fd, data.data(), data.size(), 0);
+        std::cout << "Sent database to replica\n";
       }
     }
 
     close(client_fd);
-    std::cout << "Client disconnected\n";
+    std::string str = "Client";
+    if (data.client_is_replica)
+    {
+      str = "Replica";
+    }
+    if (data.is_replica)
+    {
+      str = "Master";
+    }
+    std::cout << str + " disconnected\n";
   }
 };
 
@@ -88,10 +135,10 @@ int main(const int argc, char **argv) {
   sockaddr_in server_addr{};
   server_addr.sin_family = AF_INET;
   server_addr.sin_addr.s_addr = INADDR_ANY;
-  server_addr.sin_port = htons(std::stoi(config_key_vals["port"]));
+  server_addr.sin_port = htons(std::stoi(config_key_vals()["port"]));
   
   if (bind(server_fd, reinterpret_cast<sockaddr*>(&server_addr), sizeof(server_addr)) != 0) {
-    std::cerr << "Failed to bind to port " + config_key_vals["port"] + "\n";
+    std::cerr << "Failed to bind to port " + config_key_vals()["port"] + "\n";
     return 1;
   }
 
@@ -100,10 +147,12 @@ int main(const int argc, char **argv) {
     return 1;
   }
 
+  std::vector<std::thread> rels;
+
   if (is_slave())
   {
     const int master_fd = socket(AF_INET, SOCK_STREAM, 0);
-    const std::string str = config_key_vals["replicaof"];
+    const std::string str = config_key_vals()["replicaof"];
     const std::string madd = str.substr(0, str.find(' '));
     const std::string mp = str.substr(str.rfind(' ') + 1);
 
@@ -119,14 +168,14 @@ int main(const int argc, char **argv) {
       return 1;
     }
     send_handshake(master_fd);
-    std::cout << "Sent handshake\n";
+    std::cout << "Sent handshake to master\n";
+    rels.emplace_back(Rel(master_fd, true));
   }
   else
   {
     read_rdb();
   }
 
-  std::vector<std::thread> rels;
 
   std::thread rel_adder([server_fd, &rels]()
   {

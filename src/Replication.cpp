@@ -5,14 +5,85 @@
 #include "Database.h"
 #include <sys/socket.h>
 #include "Resp.h"
+#include <mutex>
+#include <ranges>
 
 std::string master_replid = "VeryRandomStringThatIsFortyCharactersLon";
-size_t master_repl_offset = 0;
-bool send_rdb = false;
+size_t master_repl_offset_int = 0;
+
+std::deque<std::pair<std::string, int>> command_queue_q;
+int slave_count_int = 0;
+size_t top_offset_int = 0;
+
+std::mutex command_queue_lock;
+std::mutex slave_count_lock;
+std::mutex master_repl_offset_lock;
+std::mutex top_offset_lock;
+
+size_t& master_repl_offset()
+{
+    const std::lock_guard guard(master_repl_offset_lock);
+    return master_repl_offset_int;
+}
+
+std::deque<std::pair<std::string, int>>& command_queue()
+{
+    const std::lock_guard lock(command_queue_lock);
+    return command_queue_q;
+}
+
+int& slave_count()
+{
+    const std::lock_guard lock(slave_count_lock);
+    return slave_count_int;
+}
+
+size_t& top_offset()
+{
+    const std::lock_guard lock(top_offset_lock);
+    return top_offset_int;
+}
+
+void slave_disconnected()
+{
+    const std::lock_guard lock(command_queue_lock);
+    const std::lock_guard lock2(slave_count_lock);
+    slave_count_int--;
+    if (!slave_count_int)
+    {
+        command_queue_q.clear();
+    }
+    for (auto& val : command_queue_q | std::views::values)
+    {
+        val--;
+    }
+}
+
+void add_command(const std::string& command)
+{
+    const std::lock_guard lock(command_queue_lock);
+    const std::lock_guard lock2(slave_count_lock);
+    if (!slave_count_int)
+    {
+        return;
+    }
+    command_queue_q.emplace_back(command, slave_count_int);
+}
+
+void remove_command()
+{
+    const std::lock_guard lock(top_offset_lock);
+    const std::lock_guard lock2(command_queue_lock);
+    if (command_queue_q.front().second == 0)
+    {
+        command_queue_q.pop_front();
+        top_offset_int++;
+    }
+}
 
 bool is_slave()
 {
-    return config_key_vals.contains("replicaof");
+    return config_key_vals().contains("replicaof");
 }
 
 int find(const char* s, const char c, const int start, const int end)
@@ -36,7 +107,7 @@ void send_handshake(const int master_fd)
     send(master_fd, str1.c_str(), str1.size(), 0);
     recv(master_fd, in_buffer, buffer_size, 0); // pong
 
-    const std::string str2 = command({"REPLCONF", "listening-port", config_key_vals["port"]});
+    const std::string str2 = command({"REPLCONF", "listening-port", config_key_vals()["port"]});
     send(master_fd, str2.c_str(), str2.size(), 0);
     recv(master_fd, in_buffer, buffer_size, 0); // ok
 
