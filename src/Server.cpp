@@ -66,6 +66,7 @@ class Rel
       {
         break;
       }
+      in_buffer[n] = '\0';
 
       in_stream.str(in_buffer);
       in_stream.clear();
