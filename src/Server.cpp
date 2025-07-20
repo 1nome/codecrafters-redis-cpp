@@ -70,27 +70,30 @@ class Rel
       in_stream.str(in_buffer);
       in_stream.clear();
 
-      RESP_data cmd = parse(in_stream);
+      while (in_stream.good())
+      {
+        RESP_data cmd = parse(in_stream);
 
-      response = process_command(cmd, data);
+        response = process_command(cmd, data);
 
-      if (data.repeat)
-      {
-        data.repeat = false;
-        add_command(in_stream.str());
-        master_repl_offset()++;
-      }
-      if (data.is_replica)
-      {
-        continue;
-      }
-      send(client_fd, response.c_str(), response.length(), 0);
-      if (data.send_rdb)
-      {
-        data.send_rdb = false;
-        std::vector<unsigned char> data = make_rdb();
-        send(client_fd, data.data(), data.size(), 0);
-        std::cout << "Sent database to replica\n";
+        if (data.repeat)
+        {
+          data.repeat = false;
+          add_command(in_stream.str());
+          master_repl_offset()++;
+        }
+        if (data.is_replica)
+        {
+          continue;
+        }
+        send(client_fd, response.c_str(), response.length(), 0);
+        if (data.send_rdb)
+        {
+          data.send_rdb = false;
+          std::vector<unsigned char> data = make_rdb();
+          send(client_fd, data.data(), data.size(), 0);
+          std::cout << "Sent database to replica\n";
+        }
       }
     }
 
