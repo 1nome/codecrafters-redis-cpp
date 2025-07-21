@@ -9,6 +9,7 @@ struct PropagatedCmd
     std::string cmd;
     int remaining;
     bool expect_response;
+    unsigned int timeout;
 };
 
 extern std::string master_replid;
@@ -18,7 +19,7 @@ std::deque<PropagatedCmd>& command_queue();
 int& slave_count();
 size_t& top_offset();
 void slave_disconnected();
-void add_command(const std::string& command, bool expect_response);
+void add_command(const std::string& command, bool expect_response = false, unsigned int timeout = 0);
 void remove_command();
 
 void replica_acked();

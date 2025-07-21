@@ -46,7 +46,7 @@ class Rel
       if (data.repeat)
       {
         data.repeat = false;
-        add_command(in_stream.str().substr(prevg, currg - prevg), false);
+        add_command(in_stream.str().substr(prevg, currg - prevg));
       }
       prevg = currg;
       if (data.is_replica && !data.respond)
@@ -101,17 +101,27 @@ class Rel
         }
         if (command_queue().front().expect_response)
         {
-          n = recv(client_fd, in_buffer, buffer_size, 0);
-          if (n == 0)
-          {
-            slave_disconnected();
-            remove_command();
-            break;
+          // not the best solution as high timeout values will block everything for a while
+          const unsigned int ms = command_queue().front().timeout;
+          timeval tv{ms / 1000, ms % 1000 * 1000};
+          if (setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO_NEW, &tv, sizeof(tv)) < 0) {
+            const int err = errno;
+            std::cerr << "Setsockopt failed:\n" << strerror(err) << "\n";
           }
-          in_stream.str({in_buffer, static_cast<size_t>(n)});
-          in_stream.clear();
-          RESP_data cmd = parse(in_stream);
-          process_command(cmd, data);
+          else
+          {
+            n = recv(client_fd, in_buffer, buffer_size, 0);
+            if (n == 0)
+            {
+              slave_disconnected();
+              remove_command();
+              break;
+            }
+            in_stream.str({in_buffer, static_cast<size_t>(n)});
+            in_stream.clear();
+            RESP_data cmd = parse(in_stream);
+            process_command(cmd, data);
+          }
         }
         command_queue().front().remaining--;
         data.local_offset++;

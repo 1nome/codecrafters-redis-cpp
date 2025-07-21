@@ -262,13 +262,18 @@ std::string wait(const RESP_data& resp, Rel_data& data)
     }
 
     const long numreplicas = std::stol(resp.array[1].string);
-    const auto timeout = std::chrono::milliseconds(std::stol(resp.array[2].string));
+    if (numreplicas <= 0)
+    {
+        return integer(0);
+    }
+    const unsigned int timeout = std::stol(resp.array[2].string);
 
-    add_command(command({"REPLCONF", "GETACK", "*"}), true);
+    add_command(command({"REPLCONF", "GETACK", "*"}), true, timeout);
     reset_acks();
 
+    const auto millis = std::chrono::milliseconds(timeout);
     const auto start = std::chrono::system_clock::now();
-    while (std::chrono::system_clock::now() - start < timeout)
+    while (std::chrono::system_clock::now() - start < millis)
     {
         if (n_acks() >= numreplicas)
         {

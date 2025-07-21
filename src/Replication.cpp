@@ -62,7 +62,7 @@ void slave_disconnected()
     }
 }
 
-void add_command(const std::string& command, bool expect_response)
+void add_command(const std::string& command, bool expect_response, unsigned int timeout)
 {
     const std::lock_guard lock(command_queue_lock);
     const std::lock_guard lock2(slave_count_lock);
@@ -70,7 +70,7 @@ void add_command(const std::string& command, bool expect_response)
     {
         return;
     }
-    command_queue_q.emplace_back(command, slave_count_int, expect_response);
+    command_queue_q.emplace_back(command, slave_count_int, expect_response, timeout);
 }
 
 void remove_command()
