@@ -262,7 +262,7 @@ std::string process_command(const RESP_data& resp, Rel_data& data)
     if (!cmd_map.contains(cmd))
     {
         // temp value
-        return bulk_string("");
+        return bulk_string("bad command");
     }
     return cmd_map.at(cmd)(resp, data);
 }
