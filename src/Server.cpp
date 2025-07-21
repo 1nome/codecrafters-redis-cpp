@@ -86,6 +86,7 @@ class Rel
           data.repeat = false;
           add_command(in_stream.str().substr(prevg, currg - prevg));
         }
+        prevg = currg;
         if (data.is_replica && !data.respond)
         {
           continue;
@@ -99,7 +100,6 @@ class Rel
           send(client_fd, data.data(), data.size(), 0);
           std::cout << "Sent database to replica\n";
         }
-        prevg = currg;
       }
     }
 
