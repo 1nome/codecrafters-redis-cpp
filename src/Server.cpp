@@ -85,10 +85,11 @@ class Rel
           add_command(in_stream.str().substr(prevg, currg - prevg));
           master_repl_offset()++;
         }
-        if (data.is_replica)
+        if (data.is_replica && !data.respond)
         {
           continue;
         }
+        data.respond = false;
         send(client_fd, response.c_str(), response.length(), 0);
         if (data.send_rdb)
         {

@@ -13,6 +13,7 @@ struct Rel_data
     bool repeat = false;
     size_t local_offset = top_offset();
     bool is_replica = false;
+    bool respond = false;
 };
 
 std::string process_command(const RESP_data& resp, Rel_data& data);

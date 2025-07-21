@@ -213,6 +213,7 @@ const std::unordered_map<std::string, Cmd> replconf_cmd_map = {
 std::string replconf(const RESP_data& resp, Rel_data& data)
 {
     data.repeat = false;
+    data.respond = true;
     std::string cmd = resp.array[1].string;
     to_upper(cmd);
     if (!replconf_cmd_map.contains(cmd))
