@@ -38,7 +38,10 @@ class Rel
       response = process_command(cmd, data);
       const size_t currg = in_stream.tellg();
 
-      master_repl_offset() += currg - prevg;
+      if (data.is_replica)
+      {
+        master_repl_offset() += currg - prevg;
+      }
 
       if (data.repeat)
       {
