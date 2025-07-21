@@ -243,6 +243,17 @@ std::string psync(const RESP_data& resp, Rel_data& data)
     return bulk_string("");
 }
 
+std::string wait(const RESP_data& resp, Rel_data& data)
+{
+    data.repeat = false;
+    if (resp.array.size() < 3)
+    {
+        return bulk_string("");
+    }
+
+    return integer(0);
+}
+
 const std::unordered_map<std::string, Cmd> cmd_map = {
     {"PING", ping},
     {"ECHO", echo},
@@ -252,7 +263,8 @@ const std::unordered_map<std::string, Cmd> cmd_map = {
     {"KEYS", keys},
     {"INFO", info},
     {"REPLCONF", replconf},
-    {"PSYNC", psync}
+    {"PSYNC", psync},
+    {"WAIT", wait}
 };
 
 std::string process_command(const RESP_data& resp, Rel_data& data)
