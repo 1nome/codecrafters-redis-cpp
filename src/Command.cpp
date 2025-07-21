@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <algorithm>
 #include <ranges>
+#include <thread>
 
 const std::string bad_cmd = bulk_string("bad command");
 
@@ -273,6 +274,7 @@ std::string wait(const RESP_data& resp, Rel_data& data)
         {
             break;
         }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     return integer(n_acks());
 }
