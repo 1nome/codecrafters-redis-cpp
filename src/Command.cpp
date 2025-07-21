@@ -201,10 +201,25 @@ std::string info(const RESP_data& resp, Rel_data& data)
     return bulk_string(str);
 }
 
+std::string replconf_getack(const RESP_data& resp, Rel_data& data)
+{
+    return command({"REPLCONF", "ACK", std::to_string(master_repl_offset())});
+}
+
+const std::unordered_map<std::string, Cmd> replconf_cmd_map = {
+    {"GETACK", replconf_getack}
+};
+
 std::string replconf(const RESP_data& resp, Rel_data& data)
 {
     data.repeat = false;
-    return OK_simple;
+    std::string cmd = resp.array[0].string;
+    to_upper(cmd);
+    if (!replconf_cmd_map.contains(cmd))
+    {
+        return OK_simple;
+    }
+    return replconf_cmd_map.at(cmd)(resp, data);
 }
 
 std::string psync(const RESP_data& resp, Rel_data& data)
