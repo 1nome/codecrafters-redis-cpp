@@ -16,7 +16,7 @@ void remove_command();
 
 bool is_slave();
 
-void send_handshake(int master_fd);
+std::string send_handshake(int master_fd);
 std::vector<unsigned char> make_rdb();
 
 #endif //REPLICATION_H

@@ -1,6 +1,8 @@
+#include <cmath>
 #include <iostream>
 #include <string>
 #include <cstring>
+#include <math.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -26,14 +28,52 @@ class Rel
   int client_fd;
   Rel_data data;
 
+  void process_input()
+  {
+    size_t prevg = 0;
+    while (in_stream.peek() != EOF)
+    {
+      RESP_data cmd = parse(in_stream);
+
+      response = process_command(cmd, data);
+      const size_t currg = in_stream.tellg();
+
+      master_repl_offset() += currg - prevg;
+
+      if (data.repeat)
+      {
+        data.repeat = false;
+        add_command(in_stream.str().substr(prevg, currg - prevg));
+      }
+      prevg = currg;
+      if (data.is_replica && !data.respond)
+      {
+        continue;
+      }
+      data.respond = false;
+      send(client_fd, response.c_str(), response.length(), 0);
+      if (data.send_rdb)
+      {
+        data.send_rdb = false;
+        std::vector<unsigned char> data = make_rdb();
+        send(client_fd, data.data(), data.size(), 0);
+        std::cout << "Sent database to replica\n";
+      }
+    }
+  }
+
   public:
-  explicit Rel(const int fd, const bool is_replica = false) : client_fd(fd)
+  explicit Rel(const int fd, const bool is_replica = false, const std::string& remainder = "") : in_stream(remainder), client_fd(fd)
   {
     data.is_replica = is_replica;
   }
 
   void operator()()
   {
+    if (!in_stream.str().empty())
+    {
+      process_input();
+    }
     while (true)
     {
       if (data.client_is_replica)
@@ -61,46 +101,16 @@ class Rel
         remove_command();
         continue;
       }
+
       const long n = recv(client_fd, in_buffer, buffer_size, 0);
       if (n == 0)
       {
         break;
       }
-
       in_stream.str({in_buffer, static_cast<size_t>(n)});
       in_stream.clear();
 
-      size_t prevg = 0;
-      while (in_stream.peek() != EOF)
-      {
-        RESP_data cmd = parse(in_stream);
-
-        response = process_command(cmd, data);
-        const size_t currg = in_stream.tellg();
-
-        master_repl_offset() += currg - prevg;
-        std::cout << currg - prevg << std::endl;
-
-        if (data.repeat)
-        {
-          data.repeat = false;
-          add_command(in_stream.str().substr(prevg, currg - prevg));
-        }
-        prevg = currg;
-        if (data.is_replica && !data.respond)
-        {
-          continue;
-        }
-        data.respond = false;
-        send(client_fd, response.c_str(), response.length(), 0);
-        if (data.send_rdb)
-        {
-          data.send_rdb = false;
-          std::vector<unsigned char> data = make_rdb();
-          send(client_fd, data.data(), data.size(), 0);
-          std::cout << "Sent database to replica\n";
-        }
-      }
+      process_input();
     }
 
     close(client_fd);
@@ -176,9 +186,9 @@ int main(const int argc, char **argv) {
       std::cerr << "Failed to connect to master:\n" << strerror(err) << "\n";
       return 1;
     }
-    send_handshake(master_fd);
+    const std::string remainder = send_handshake(master_fd);
     std::cout << "Sent handshake to master\n";
-    rels.emplace_back(Rel(master_fd, true));
+    rels.emplace_back(Rel(master_fd, true, remainder));
   }
   else
   {

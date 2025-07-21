@@ -98,7 +98,7 @@ int find(const char* s, const char c, const int start, const int end)
     return -1;
 }
 
-void send_handshake(const int master_fd)
+std::string send_handshake(const int master_fd)
 {
     constexpr int buffer_size = 4096;
     char in_buffer[buffer_size];
@@ -125,15 +125,15 @@ void send_handshake(const int master_fd)
         recv(master_fd, in_buffer, buffer_size, 0);
         s = 0;
     }
-    std::cout << r << std::endl;
-    std::cout << s << std::endl;
     s += 1;
     char* end;
     const long n = std::strtol(in_buffer + s, &end, 10);
-    std::cout << n << std::endl;
+    end += 2;
     std::stringstream ss;
-    ss.write(end + 2, n);
+    ss.write(end, n);
     read_rdb(&ss);
+
+    return {end + n, static_cast<std::string::size_type>(r - n - (end - in_buffer))};
 }
 
 std::vector<unsigned char> make_rdb()
