@@ -79,11 +79,12 @@ class Rel
         // will be 2^64-1 on eof, but that doesn't matter as substr will copy only to the end of a string
         const size_t currg = in_stream.tellg();
 
+        master_repl_offset() += currg - prevg;
+
         if (data.repeat)
         {
           data.repeat = false;
           add_command(in_stream.str().substr(prevg, currg - prevg));
-          master_repl_offset()++;
         }
         if (data.is_replica && !data.respond)
         {
