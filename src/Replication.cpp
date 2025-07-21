@@ -125,6 +125,7 @@ void send_handshake(const int master_fd)
         recv(master_fd, in_buffer, buffer_size, 0);
         s = 0;
     }
+    std::cout << r << std::endl;
     s += 1;
     char* end;
     const long n = std::strtol(in_buffer + s, &end, 10);
