@@ -71,7 +71,7 @@ class Rel
       in_stream.clear();
 
       size_t prevg = 0;
-      while (in_stream.good())
+      while (in_stream.peek() != EOF)
       {
         RESP_data cmd = parse(in_stream);
 

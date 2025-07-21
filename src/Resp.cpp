@@ -181,11 +181,11 @@ RESP_data parse(std::stringstream& input)
 
         next_line();
         std::getline(input, data.string, '\r');
+        next_line();
         break;
     default:
         break;
     }
-    next_line();
     return data;
 }
 
