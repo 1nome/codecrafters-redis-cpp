@@ -251,7 +251,18 @@ std::string wait(const RESP_data& resp, Rel_data& data)
         return bulk_string("");
     }
 
-    return integer(0);
+    const long numreplicas = std::stol(resp.array[1].string);
+    const auto timeout = std::chrono::milliseconds(std::stol(resp.array[2].string));
+
+    const auto start = std::chrono::system_clock::now();
+    while (std::chrono::system_clock::now() - start < timeout)
+    {
+        if (num_finished_commands() >= numreplicas)
+        {
+            break;
+        }
+    }
+    return integer(num_finished_commands());
 }
 
 const std::unordered_map<std::string, Cmd> cmd_map = {

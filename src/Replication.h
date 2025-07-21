@@ -13,6 +13,7 @@ size_t& top_offset();
 void slave_disconnected();
 void add_command(const std::string& command);
 void remove_command();
+int num_finished_commands();
 
 bool is_slave();
 

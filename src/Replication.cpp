@@ -81,6 +81,17 @@ void remove_command()
     }
 }
 
+int num_finished_commands()
+{
+    const std::lock_guard lock2(command_queue_lock);
+    const std::lock_guard lock(slave_count_lock);
+    if (command_queue_q.empty())
+    {
+        return slave_count_int;
+    }
+    return slave_count_int - command_queue_q.back().second;
+}
+
 bool is_slave()
 {
     return config_key_vals().contains("replicaof");
