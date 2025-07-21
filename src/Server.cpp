@@ -61,26 +61,28 @@ class Rel
         remove_command();
         continue;
       }
-      long n = recv(client_fd, in_buffer, buffer_size, 0);
+      const long n = recv(client_fd, in_buffer, buffer_size, 0);
       if (n == 0)
       {
         break;
       }
-      in_buffer[n] = '\0';
 
-      in_stream.str(in_buffer);
+      in_stream.str({in_buffer, static_cast<size_t>(n)});
       in_stream.clear();
 
+      size_t prevg = 0;
       while (in_stream.good())
       {
         RESP_data cmd = parse(in_stream);
 
         response = process_command(cmd, data);
+        // will be 2^64-1 on eof, but that doesn't matter as substr will copy only to the end of a string
+        const size_t currg = in_stream.tellg();
 
         if (data.repeat)
         {
           data.repeat = false;
-          add_command(in_stream.str());
+          add_command(in_stream.str().substr(prevg, currg - prevg));
           master_repl_offset()++;
         }
         if (data.is_replica)
@@ -95,6 +97,7 @@ class Rel
           send(client_fd, data.data(), data.size(), 0);
           std::cout << "Sent database to replica\n";
         }
+        prevg = currg;
       }
     }
 
