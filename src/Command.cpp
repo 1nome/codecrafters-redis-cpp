@@ -7,6 +7,8 @@
 #include <algorithm>
 #include <ranges>
 
+const std::string bad_cmd = bulk_string("bad command");
+
 typedef std::string (*Cmd)(const RESP_data&, Rel_data&);
 
 void to_upper(std::string& s)
@@ -30,7 +32,7 @@ std::string echo(const RESP_data& resp, Rel_data& data)
     data.repeat = false;
     if (resp.array.size() < 2)
     {
-        return bulk_string("");
+        return bad_cmd;
     }
 
     return bulk_string(resp.array[1].string);
@@ -40,7 +42,7 @@ std::string set(const RESP_data& resp, Rel_data& data)
 {
     if (resp.array.size() < 3)
     {
-        return bulk_string("");
+        return bad_cmd;
     }
 
     data.repeat = true;
@@ -88,7 +90,7 @@ std::string get(const RESP_data& resp, Rel_data& data)
     data.repeat = false;
     if (resp.array.size() < 2)
     {
-        return bulk_string("");
+        return bad_cmd;
     }
 
     if (key_vals().contains(resp.array[1].string))
@@ -127,7 +129,7 @@ std::string config(const RESP_data& resp, Rel_data& data)
     data.repeat = false;
     if (resp.array.size() < 2)
     {
-        return bulk_string("");
+        return bad_cmd;
     }
 
     std::string cmd = resp.array[1].string;
@@ -135,7 +137,7 @@ std::string config(const RESP_data& resp, Rel_data& data)
     if (!config_cmd_map.contains(cmd))
     {
         // temp value
-        return bulk_string("");
+        return bad_cmd;
     }
     return config_cmd_map.at(cmd)(resp, data);
 }
@@ -145,7 +147,7 @@ std::string keys(const RESP_data& resp, Rel_data& data)
     data.repeat = false;
     if (resp.array.size() < 2)
     {
-        return bulk_string("");
+        return bad_cmd;
     }
 
     if (resp.array[1].string != "*")
@@ -206,8 +208,15 @@ std::string replconf_getack(const RESP_data& resp, Rel_data& data)
     return command({"REPLCONF", "ACK", std::to_string(master_repl_offset())});
 }
 
+std::string replconf_ack(const RESP_data& resp, Rel_data& data)
+{
+    replica_acked();
+    return OK_simple;
+}
+
 const std::unordered_map<std::string, Cmd> replconf_cmd_map = {
-    {"GETACK", replconf_getack}
+    {"GETACK", replconf_getack},
+    {"ACK", replconf_ack}
 };
 
 std::string replconf(const RESP_data& resp, Rel_data& data)
@@ -228,7 +237,7 @@ std::string psync(const RESP_data& resp, Rel_data& data)
     data.repeat = false;
     if (resp.array.size() < 3)
     {
-        return bulk_string("");
+        return bad_cmd;
     }
 
     if (resp.array[1].string == "?" && resp.array[2].string == "-1")
@@ -240,7 +249,7 @@ std::string psync(const RESP_data& resp, Rel_data& data)
     }
 
     // temp
-    return bulk_string("");
+    return bulk_string("not supported yet");
 }
 
 std::string wait(const RESP_data& resp, Rel_data& data)
@@ -248,21 +257,24 @@ std::string wait(const RESP_data& resp, Rel_data& data)
     data.repeat = false;
     if (resp.array.size() < 3)
     {
-        return bulk_string("");
+        return bad_cmd;
     }
 
     const long numreplicas = std::stol(resp.array[1].string);
     const auto timeout = std::chrono::milliseconds(std::stol(resp.array[2].string));
 
+    add_command(command({"REPLCONF", "GETACK", "*"}), true);
+    reset_acks();
+
     const auto start = std::chrono::system_clock::now();
     while (std::chrono::system_clock::now() - start < timeout)
     {
-        if (num_finished_commands() >= numreplicas)
+        if (n_acks() >= numreplicas)
         {
             break;
         }
     }
-    return integer(num_finished_commands());
+    return integer(n_acks());
 }
 
 const std::unordered_map<std::string, Cmd> cmd_map = {
@@ -285,7 +297,7 @@ std::string process_command(const RESP_data& resp, Rel_data& data)
     if (!cmd_map.contains(cmd))
     {
         // temp value
-        return bulk_string("bad command");
+        return bad_cmd;
     }
     return cmd_map.at(cmd)(resp, data);
 }

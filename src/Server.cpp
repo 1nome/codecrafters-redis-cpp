@@ -46,7 +46,7 @@ class Rel
       if (data.repeat)
       {
         data.repeat = false;
-        add_command(in_stream.str().substr(prevg, currg - prevg));
+        add_command(in_stream.str().substr(prevg, currg - prevg), false);
       }
       prevg = currg;
       if (data.is_replica && !data.respond)
@@ -91,7 +91,7 @@ class Rel
           std::this_thread::yield();
           continue;
         }
-        response = command_queue().front().first;
+        response = command_queue().front().cmd;
         long n = send(client_fd, response.c_str(), response.length(), MSG_NOSIGNAL);
         if (n == -1)
         {
@@ -99,7 +99,13 @@ class Rel
           remove_command();
           break;
         }
-        command_queue().front().second--;
+        if (command_queue().front().expect_response)
+        {
+          RESP_data cmd = parse(in_stream);
+
+          process_command(cmd, data);
+        }
+        command_queue().front().remaining--;
         data.local_offset++;
         remove_command();
         continue;

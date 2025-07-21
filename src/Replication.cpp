@@ -11,14 +11,17 @@
 std::string master_replid = "VeryRandomStringThatIsFortyCharactersLon";
 size_t master_repl_offset_int = 0;
 
-std::deque<std::pair<std::string, int>> command_queue_q;
+std::deque<PropagatedCmd> command_queue_q;
 int slave_count_int = 0;
 size_t top_offset_int = 0;
+
+int acked;
 
 std::mutex command_queue_lock;
 std::mutex slave_count_lock;
 std::mutex master_repl_offset_lock;
 std::mutex top_offset_lock;
+std::mutex acked_lock;
 
 size_t& master_repl_offset()
 {
@@ -26,7 +29,7 @@ size_t& master_repl_offset()
     return master_repl_offset_int;
 }
 
-std::deque<std::pair<std::string, int>>& command_queue()
+std::deque<PropagatedCmd>& command_queue()
 {
     const std::lock_guard lock(command_queue_lock);
     return command_queue_q;
@@ -53,13 +56,13 @@ void slave_disconnected()
     {
         command_queue_q.clear();
     }
-    for (auto& val : command_queue_q | std::views::values)
+    for (auto& val : command_queue_q)
     {
-        val--;
+        val.remaining--;
     }
 }
 
-void add_command(const std::string& command)
+void add_command(const std::string& command, bool expect_response)
 {
     const std::lock_guard lock(command_queue_lock);
     const std::lock_guard lock2(slave_count_lock);
@@ -74,22 +77,29 @@ void remove_command()
 {
     const std::lock_guard lock(top_offset_lock);
     const std::lock_guard lock2(command_queue_lock);
-    if (command_queue_q.front().second == 0)
+    if (command_queue_q.front().remaining == 0)
     {
         command_queue_q.pop_front();
         top_offset_int++;
     }
 }
 
-int num_finished_commands()
+void replica_acked()
 {
-    const std::lock_guard lock2(command_queue_lock);
-    const std::lock_guard lock(slave_count_lock);
-    if (command_queue_q.empty())
-    {
-        return slave_count_int;
-    }
-    return slave_count_int - command_queue_q.back().second;
+    const std::lock_guard lock(acked_lock);
+    acked++;
+}
+
+void reset_acks()
+{
+    const std::lock_guard lock(acked_lock);
+    acked = 0;
+}
+
+int n_acks()
+{
+    const std::lock_guard lock(acked_lock);
+    return acked;
 }
 
 bool is_slave()
