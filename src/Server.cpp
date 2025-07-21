@@ -76,10 +76,10 @@ class Rel
         RESP_data cmd = parse(in_stream);
 
         response = process_command(cmd, data);
-        // will be 2^64-1 on eof, but that doesn't matter as substr will copy only to the end of a string
         const size_t currg = in_stream.tellg();
 
         master_repl_offset() += currg - prevg;
+        std::cout << currg - prevg << std::endl;
 
         if (data.repeat)
         {
