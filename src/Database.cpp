@@ -5,6 +5,7 @@
 #include <fstream>
 #include <iostream>
 #include <mutex>
+#include <utility>
 
 std::unordered_map<std::string, std::string> key_vals_map;
 std::unordered_map<std::string, Timestamp> key_expiry_map;
@@ -15,6 +16,10 @@ std::unordered_map<std::string, std::string> config_key_vals_map = {
 std::mutex key_vals_lock;
 std::mutex key_expiry_lock;
 std::mutex config_key_vals_lock;
+
+std::unordered_map<std::string, std::vector<Stream_entry>> streams;
+
+std::mutex streams_lock;
 
 enum Special_type
 {
@@ -125,6 +130,18 @@ std::unordered_map<std::string, std::string>& config_key_vals()
 {
     const std::lock_guard lock(config_key_vals_lock);
     return config_key_vals_map;
+}
+
+void stream_add(const std::string& stream_key, const Stream_entry& se)
+{
+    const std::lock_guard lock(streams_lock);
+    streams[stream_key].push_back(se);
+}
+
+bool stream_exists(const std::string& stream_key)
+{
+    const std::lock_guard lock(streams_lock);
+    return streams.contains(stream_key);
 }
 
 void read_rdb(std::basic_istream<char>* s)

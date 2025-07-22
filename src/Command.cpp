@@ -306,7 +306,34 @@ std::string type(const RESP_data& resp, Rel_data& data)
         }
         remove_key(resp.array[1].string);
     }
+    if (stream_exists(resp.array[1].string))
+    {
+        return simple_string("stream");
+    }
     return simple_string("none");
+}
+
+std::string xadd(const RESP_data& resp, Rel_data& data)
+{
+    data.repeat = true;
+    if (resp.array.size() < 5)
+    {
+        return bad_cmd;
+    }
+
+    Stream_entry se{resp.array[2].string, {}};
+
+    constexpr size_t start = 3;
+    const size_t n = (resp.array.size() - start) / 2;
+    se.key_vals.reserve(n);
+    for (size_t i = 0; i < n; i++)
+    {
+        se.key_vals[resp.array[start + i].string] = resp.array[start + i + 1].string;
+    }
+
+    stream_add(resp.array[1].string, se);
+
+    return bulk_string(se.id);
 }
 
 const std::unordered_map<std::string, Cmd> cmd_map = {
@@ -320,7 +347,8 @@ const std::unordered_map<std::string, Cmd> cmd_map = {
     {"REPLCONF", replconf},
     {"PSYNC", psync},
     {"WAIT", wait},
-    {"TYPE", type}
+    {"TYPE", type},
+    {"XADD", xadd}
 };
 
 std::string process_command(const RESP_data& resp, Rel_data& data)
