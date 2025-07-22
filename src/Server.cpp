@@ -111,7 +111,7 @@ class Rel
           else
           {
             n = recv(client_fd, in_buffer, buffer_size, 0);
-            if (n == 0)
+            if (n <= 0)
             {
               slave_disconnected();
               remove_command();
