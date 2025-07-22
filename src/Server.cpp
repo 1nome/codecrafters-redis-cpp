@@ -111,16 +111,13 @@ class Rel
           else
           {
             n = recv(client_fd, in_buffer, buffer_size, 0);
-            if (n <= 0)
+            if (n > 0)
             {
-              slave_disconnected();
-              remove_command();
-              break;
+              in_stream.str({in_buffer, static_cast<size_t>(n)});
+              in_stream.clear();
+              RESP_data cmd = parse(in_stream);
+              process_command(cmd, data);
             }
-            in_stream.str({in_buffer, static_cast<size_t>(n)});
-            in_stream.clear();
-            RESP_data cmd = parse(in_stream);
-            process_command(cmd, data);
           }
         }
         command_queue().front().remaining--;
