@@ -290,6 +290,25 @@ std::string wait(const RESP_data& resp, Rel_data& data)
     return integer(n_acks());
 }
 
+std::string type(const RESP_data& resp, Rel_data& data)
+{
+    data.repeat = false;
+    if (resp.array.size() < 2)
+    {
+        return bad_cmd;
+    }
+
+    if (key_vals().contains(resp.array[1].string))
+    {
+        if (is_active(resp.array[1].string))
+        {
+            return simple_string("string");
+        }
+        remove_key(resp.array[1].string);
+    }
+    return simple_string("none");
+}
+
 const std::unordered_map<std::string, Cmd> cmd_map = {
     {"PING", ping},
     {"ECHO", echo},
@@ -300,7 +319,8 @@ const std::unordered_map<std::string, Cmd> cmd_map = {
     {"INFO", info},
     {"REPLCONF", replconf},
     {"PSYNC", psync},
-    {"WAIT", wait}
+    {"WAIT", wait},
+    {"TYPE", type}
 };
 
 std::string process_command(const RESP_data& resp, Rel_data& data)
