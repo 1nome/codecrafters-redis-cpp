@@ -18,7 +18,7 @@ struct Stream_entry
     std::unordered_map<std::string, std::string> key_vals;
 };
 
-void stream_add(const std::string& stream_key, Stream_entry se);
+void stream_add(const std::string& stream_key, const Stream_entry& se);
 bool stream_exists(const std::string& stream_key);
 
 void read_rdb(std::basic_istream<char>* s = nullptr);
