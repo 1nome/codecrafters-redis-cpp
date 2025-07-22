@@ -261,6 +261,10 @@ std::string wait(const RESP_data& resp, Rel_data& data)
         return bad_cmd;
     }
 
+    if (command_queue().empty())
+    {
+        return integer(slave_count());
+    }
     const long numreplicas = std::stol(resp.array[1].string);
     if (numreplicas <= 0)
     {
