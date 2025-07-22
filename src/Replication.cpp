@@ -15,13 +15,15 @@ std::deque<PropagatedCmd> command_queue_q;
 int slave_count_int = 0;
 size_t top_offset_int = 0;
 
-int acked;
+int acked = 0;
+bool send_getack_bool = false;
 
 std::mutex command_queue_lock;
 std::mutex slave_count_lock;
 std::mutex master_repl_offset_lock;
 std::mutex top_offset_lock;
 std::mutex acked_lock;
+std::mutex send_getack_lock;
 
 size_t& master_repl_offset()
 {
@@ -100,6 +102,12 @@ int n_acks()
 {
     const std::lock_guard lock(acked_lock);
     return acked;
+}
+
+bool& send_getack()
+{
+    const std::lock_guard lock(send_getack_lock);
+    return send_getack_bool;
 }
 
 bool is_slave()

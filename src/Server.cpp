@@ -47,6 +47,7 @@ class Rel
       {
         data.repeat = false;
         add_command(in_stream.str().substr(prevg, currg - prevg));
+        send_getack() = true;
       }
       prevg = currg;
       if (data.is_replica && !data.respond)

@@ -25,6 +25,7 @@ void remove_command();
 void replica_acked();
 void reset_acks();
 int n_acks();
+bool& send_getack();
 
 bool is_slave();
 
