@@ -387,7 +387,61 @@ std::string xadd(const RESP_data& resp, Rel_data& data)
 
     stream_add(key, se);
 
-    return bulk_string(std::to_string(se.milliseconds_time) + "-" + std::to_string(se.sequence_number));
+    return se.id_bulk();
+}
+
+std::string xrange(const RESP_data& resp, Rel_data& data)
+{
+    data.repeat = false;
+    if (resp.array.size() < 4)
+    {
+        return bad_cmd;
+    }
+
+    const std::string key = resp.array[1].string;
+    if (!stream_exists(key))
+    {
+        return bad_cmd;
+    }
+
+    // needs exception handling
+    size_t pos = 1;
+    const std::string start = resp.array[2].string;
+    const std::string end = resp.array[3].string;
+    const unsigned long start_millis = start == "-" ? 0 : std::stol(start, &pos);
+    const unsigned int start_seq = pos < start.length() ? std::stol(start.substr(pos + 1)) : 0;
+    const unsigned long end_millis = end == "+" ? -1 : std::stol(end, &pos);
+    const unsigned int end_seq = pos < end.length() ? std::stol(end.substr(pos + 1)) : -1;
+
+    std::vector<std::string> res;
+    {
+        const std::lock_guard lock(streams_lock);
+
+        for (const std::vector<Stream_entry> stream = streams[key]; const Stream_entry& se : stream)
+        {
+            if (se.milliseconds_time < start_millis || se.milliseconds_time > end_millis)
+            {
+                continue;
+            }
+            if (se.milliseconds_time == start_millis && se.sequence_number < start_seq || se.milliseconds_time ==
+                end_millis && se.sequence_number > end_seq)
+            {
+                continue;
+            }
+            std::vector<std::string> stream_repr;
+            std::vector<std::string> stream_data_repr;
+            for (const auto& [fst, snd] : se.key_vals)
+            {
+                stream_data_repr.push_back(bulk_string(fst));
+                stream_data_repr.push_back(bulk_string(snd));
+            }
+            stream_repr.push_back(se.id_bulk());
+            stream_repr.push_back(array(stream_data_repr));
+            res.push_back(array(stream_repr));
+        }
+    }
+
+    return array(res);
 }
 
 const std::unordered_map<std::string, Cmd> cmd_map = {
@@ -402,7 +456,8 @@ const std::unordered_map<std::string, Cmd> cmd_map = {
     {"PSYNC", psync},
     {"WAIT", wait},
     {"TYPE", type},
-    {"XADD", xadd}
+    {"XADD", xadd},
+    {"XRANGE", xrange}
 };
 
 std::string process_command(const RESP_data& resp, Rel_data& data)

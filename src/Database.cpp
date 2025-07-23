@@ -6,6 +6,7 @@
 #include <iostream>
 #include <mutex>
 #include <utility>
+#include "Resp.h"
 
 std::unordered_map<std::string, std::string> key_vals_map;
 std::unordered_map<std::string, Timestamp> key_expiry_map;
@@ -130,6 +131,11 @@ std::unordered_map<std::string, std::string>& config_key_vals()
 {
     const std::lock_guard lock(config_key_vals_lock);
     return config_key_vals_map;
+}
+
+std::string Stream_entry::id_bulk() const
+{
+    return bulk_string(std::to_string(milliseconds_time) + "-" + std::to_string(sequence_number));
 }
 
 void stream_add(const std::string& stream_key, const Stream_entry& se)
