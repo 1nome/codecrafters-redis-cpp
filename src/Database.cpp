@@ -144,6 +144,18 @@ bool stream_exists(const std::string& stream_key)
     return streams.contains(stream_key);
 }
 
+Stream_entry& stream_top(const std::string& stream_key)
+{
+    const std::lock_guard lock(streams_lock);
+    return streams[stream_key].back();
+}
+
+bool stream_empty(const std::string& stream_key)
+{
+    const std::lock_guard lock(streams_lock);
+    return streams[stream_key].empty();
+}
+
 void read_rdb(std::basic_istream<char>* s)
 {
     std::ifstream* file = nullptr;

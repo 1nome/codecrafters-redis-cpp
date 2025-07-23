@@ -315,14 +315,68 @@ std::string type(const RESP_data& resp, Rel_data& data)
 
 std::string xadd(const RESP_data& resp, Rel_data& data)
 {
-    data.repeat = true;
     if (resp.array.size() < 5)
     {
         return bad_cmd;
     }
 
-    Stream_entry se{resp.array[2].string, {}};
+    const std::string key = resp.array[1].string;
+    unsigned long ref_millis = 0;
+    unsigned int ref_sequence = 0;
+    if (stream_exists(key))
+    {
+        if (!stream_empty(key))
+        {
+            const Stream_entry temp = stream_top(key);
+            ref_millis = temp.milliseconds_time;
+            ref_sequence = temp.sequence_number;
+        }
+    }
 
+    Stream_entry se{};
+
+    if (const std::string id = resp.array[2].string; id == "*")
+    {
+        se.milliseconds_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+        if (se.milliseconds_time == ref_millis)
+        {
+            se.sequence_number = ref_sequence + 1;
+        }
+        else
+        {
+            se.sequence_number = 0;
+        }
+    }
+    else if (id.ends_with('*'))
+    {
+        se.milliseconds_time = std::stol(id);
+        if (se.milliseconds_time == ref_millis)
+        {
+            se.sequence_number = ref_sequence + 1;
+        }
+        else
+        {
+            se.sequence_number = 0;
+        }
+    }
+    else
+    {
+        size_t pos;
+        se.milliseconds_time = std::stol(id, &pos);
+        se.sequence_number = std::stol(id.substr(pos + 1));
+    }
+
+    if (se.milliseconds_time == 0 && se.sequence_number == 0)
+    {
+        return simple_error("ERR The ID specified in XADD must be greater than 0-0");
+    }
+    if (se.milliseconds_time < ref_millis || (se.sequence_number <= ref_sequence && se.milliseconds_time == ref_millis))
+    {
+        return simple_error("ERR The ID specified in XADD is equal or smaller than the target stream top item");
+    }
+
+    data.repeat = true;
     constexpr size_t start = 3;
     const size_t n = (resp.array.size() - start) / 2;
     se.key_vals.reserve(n);
@@ -331,9 +385,9 @@ std::string xadd(const RESP_data& resp, Rel_data& data)
         se.key_vals[resp.array[start + i].string] = resp.array[start + i + 1].string;
     }
 
-    stream_add(resp.array[1].string, se);
+    stream_add(key, se);
 
-    return bulk_string(se.id);
+    return bulk_string(std::to_string(se.milliseconds_time) + "-" + std::to_string(se.sequence_number));
 }
 
 const std::unordered_map<std::string, Cmd> cmd_map = {
