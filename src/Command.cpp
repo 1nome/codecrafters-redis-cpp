@@ -390,24 +390,15 @@ std::string xadd(const RESP_data& resp, Rel_data& data)
     return se.id_bulk();
 }
 
-std::string xrange(const RESP_data& resp, Rel_data& data)
+std::string stream_range_arr(const std::string& key, const std::string& start, const std::string& end, const bool exclude = false)
 {
-    data.repeat = false;
-    if (resp.array.size() < 4)
-    {
-        return bad_cmd;
-    }
-
-    const std::string key = resp.array[1].string;
     if (!stream_exists(key))
     {
-        return bad_cmd;
+        return null_array;
     }
 
     // needs exception handling
     size_t pos = 1;
-    const std::string start = resp.array[2].string;
-    const std::string end = resp.array[3].string;
     const unsigned long start_millis = start == "-" ? 0 : std::stol(start, &pos);
     const unsigned int start_seq = pos < start.length() ? std::stol(start.substr(pos + 1)) : 0;
     const unsigned long end_millis = end == "+" ? -1 : std::stol(end, &pos);
@@ -423,22 +414,99 @@ std::string xrange(const RESP_data& resp, Rel_data& data)
             {
                 continue;
             }
-            if (se.milliseconds_time == start_millis && se.sequence_number < start_seq || se.milliseconds_time ==
-                end_millis && se.sequence_number > end_seq)
+            if (se.milliseconds_time == start_millis && (se.sequence_number < start_seq || se.sequence_number ==
+                start_seq && exclude) || se.milliseconds_time == end_millis && se.sequence_number > end_seq)
             {
                 continue;
             }
-            std::vector<std::string> stream_repr;
-            std::vector<std::string> stream_data_repr;
+            std::vector<std::string> entry_repr;
+            std::vector<std::string> data_repr;
             for (const auto& [fst, snd] : se.key_vals)
             {
-                stream_data_repr.push_back(bulk_string(fst));
-                stream_data_repr.push_back(bulk_string(snd));
+                data_repr.push_back(bulk_string(fst));
+                data_repr.push_back(bulk_string(snd));
             }
-            stream_repr.push_back(se.id_bulk());
-            stream_repr.push_back(array(stream_data_repr));
-            res.push_back(array(stream_repr));
+            entry_repr.push_back(se.id_bulk());
+            entry_repr.push_back(array(data_repr));
+            res.push_back(array(entry_repr));
         }
+    }
+
+    return array(res);
+}
+
+std::string xrange(const RESP_data& resp, Rel_data& data)
+{
+    data.repeat = false;
+    if (resp.array.size() < 4)
+    {
+        return bad_cmd;
+    }
+
+    const std::string key = resp.array[1].string;
+
+    if (!stream_exists(key))
+    {
+        return null_array;
+    }
+
+    return stream_range_arr(key, resp.array[2].string, resp.array[3].string);
+}
+
+std::string xread(const RESP_data& resp, Rel_data& data)
+{
+    data.repeat = false;
+    if (resp.array.size() < 4)
+    {
+        return bad_cmd;
+    }
+
+    std::vector<std::string> keys;
+    std::vector<std::string> ids;
+    bool load_keys = false, load_ids = false;
+    for (const auto& param : resp.array)
+    {
+        if (load_ids)
+        {
+            ids.push_back(param.string);
+            continue;
+        }
+        // currently does not support keys starting with digits
+        if (isdigit(param.string[0]))
+        {
+            load_ids = true;
+            ids.push_back(param.string);
+            continue;
+        }
+        if (load_keys)
+        {
+            keys.push_back(param.string);
+            continue;
+        }
+        if (param.string == "streams")
+        {
+            load_keys = true;
+        }
+    }
+    if (keys.size() != ids.size())
+    {
+        return bad_cmd;
+    }
+
+    std::vector<std::string> res;
+    for (size_t i = 0; i < keys.size(); i++)
+    {
+        std::vector<std::string> stream_repr;
+        stream_repr.push_back(bulk_string(keys[i]));
+        if (!stream_exists(keys[i]))
+        {
+            stream_repr.push_back(null_array);
+        }
+        else
+        {
+            stream_repr.push_back(stream_range_arr(keys[i], ids[i], "+", true));
+        }
+        res.push_back(array(stream_repr));
     }
 
     return array(res);
@@ -457,7 +525,8 @@ const std::unordered_map<std::string, Cmd> cmd_map = {
     {"WAIT", wait},
     {"TYPE", type},
     {"XADD", xadd},
-    {"XRANGE", xrange}
+    {"XRANGE", xrange},
+    {"XREAD", xread}
 };
 
 std::string process_command(const RESP_data& resp, Rel_data& data)
