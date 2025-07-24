@@ -400,8 +400,17 @@ std::string stream_range_arr(const std::string& key, const std::string& start, c
 
     // needs exception handling
     size_t pos = 1;
-    const unsigned long start_millis = start == "-" ? 0 : std::stol(start, &pos);
-    const unsigned int start_seq = pos < start.length() ? std::stol(start.substr(pos + 1)) : 0;
+    const unsigned long start_millis = start == "-"
+                                           ? 0
+                                           : start == "$"
+                                            // hacky and will segfault on bad input
+                                           ? streams[key][first - 1].milliseconds_time
+                                           : std::stol(start, &pos);
+    const unsigned int start_seq = start == "$"
+                                       ? streams[key][first - 1].sequence_number
+                                       : pos < start.length()
+                                       ? std::stol(start.substr(pos + 1))
+                                       : 0;
     const unsigned long end_millis = end == "+" ? -1 : std::stol(end, &pos);
     const unsigned int end_seq = pos < end.length() ? std::stol(end.substr(pos + 1)) : -1;
 
@@ -477,7 +486,7 @@ std::string xread(const RESP_data& resp, Rel_data& data)
             ids.push_back(param.string);
         }
         // currently does not support keys starting with digits
-        else if (isdigit(param.string[0]) && !load_timeout)
+        else if ((isdigit(param.string[0]) || param.string == "$") && !load_timeout)
         {
             load_ids = true;
             ids.push_back(param.string);
@@ -521,7 +530,29 @@ std::string xread(const RESP_data& resp, Rel_data& data)
 
     if (do_timeout)
     {
-        std::this_thread::sleep_for(std::chrono::milliseconds(timeout));
+        if (timeout)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(timeout));
+        }
+        else
+        {
+            bool wait = true;
+            while (wait)
+            {
+                for (size_t i = 0; i < keys.size(); i++)
+                {
+                    if (stream_exists(keys[i]))
+                    {
+                        if (streams[keys[i]].size() > firsts[i])
+                        {
+                            wait = false;
+                            break;
+                        }
+                    }
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+        }
     }
 
     std::vector<std::string> res;
