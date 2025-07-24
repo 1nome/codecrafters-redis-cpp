@@ -23,7 +23,7 @@ struct Stream_entry
 
 void stream_add(const std::string& stream_key, const Stream_entry& se);
 bool stream_exists(const std::string& stream_key);
-Stream_entry& stream_top(const std::string& stream_key);
+const Stream_entry& stream_top(const std::string& stream_key);
 bool stream_empty(const std::string& stream_key);
 
 extern std::mutex streams_lock;

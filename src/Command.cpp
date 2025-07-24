@@ -382,7 +382,7 @@ std::string xadd(const RESP_data& resp, Rel_data& data)
     se.key_vals.reserve(n);
     for (size_t i = 0; i < n; i++)
     {
-        se.key_vals[resp.array[start + i].string] = resp.array[start + i + 1].string;
+        se.key_vals[resp.array[start + i * 2].string] = resp.array[start + i * 2 + 1].string;
     }
 
     stream_add(key, se);
@@ -390,7 +390,8 @@ std::string xadd(const RESP_data& resp, Rel_data& data)
     return se.id_bulk();
 }
 
-std::string stream_range_arr(const std::string& key, const std::string& start, const std::string& end, const bool exclude = false)
+std::string stream_range_arr(const std::string& key, const std::string& start, const std::string& end,
+                             const size_t first = 0, const bool exclude = false)
 {
     if (!stream_exists(key))
     {
@@ -408,25 +409,26 @@ std::string stream_range_arr(const std::string& key, const std::string& start, c
     {
         const std::lock_guard lock(streams_lock);
 
-        for (const std::vector<Stream_entry> stream = streams[key]; const Stream_entry& se : stream)
+        const std::vector<Stream_entry>& stream = streams[key];
+        for (size_t i = first; i < stream.size(); i++)
         {
-            if (se.milliseconds_time < start_millis || se.milliseconds_time > end_millis)
+            if (stream[i].milliseconds_time < start_millis || stream[i].milliseconds_time > end_millis)
             {
                 continue;
             }
-            if (se.milliseconds_time == start_millis && (se.sequence_number < start_seq || se.sequence_number ==
-                start_seq && exclude) || se.milliseconds_time == end_millis && se.sequence_number > end_seq)
+            if (stream[i].milliseconds_time == start_millis && (stream[i].sequence_number < start_seq || stream[i].sequence_number ==
+                start_seq && exclude) || stream[i].milliseconds_time == end_millis && stream[i].sequence_number > end_seq)
             {
                 continue;
             }
             std::vector<std::string> entry_repr;
             std::vector<std::string> data_repr;
-            for (const auto& [fst, snd] : se.key_vals)
+            for (const auto& [fst, snd] : stream[i].key_vals)
             {
                 data_repr.push_back(bulk_string(fst));
                 data_repr.push_back(bulk_string(snd));
             }
-            entry_repr.push_back(se.id_bulk());
+            entry_repr.push_back(stream[i].id_bulk());
             entry_repr.push_back(array(data_repr));
             res.push_back(array(entry_repr));
         }
@@ -463,34 +465,63 @@ std::string xread(const RESP_data& resp, Rel_data& data)
 
     std::vector<std::string> keys;
     std::vector<std::string> ids;
-    bool load_keys = false, load_ids = false;
+    unsigned int timeout = 0;
+    bool do_timeout = false;
+    bool load_keys = false, load_ids = false, load_timeout = false;
     for (const auto& param : resp.array)
     {
+        std::string option = param.string;
+        to_upper(option);
         if (load_ids)
         {
             ids.push_back(param.string);
-            continue;
         }
         // currently does not support keys starting with digits
-        if (isdigit(param.string[0]))
+        else if (isdigit(param.string[0]) && !load_timeout)
         {
             load_ids = true;
             ids.push_back(param.string);
-            continue;
         }
-        if (load_keys)
+        else if (load_keys)
         {
             keys.push_back(param.string);
-            continue;
         }
-        if (param.string == "streams")
+        else if (option == "STREAMS")
         {
             load_keys = true;
+        }
+        else if (load_timeout)
+        {
+            timeout = std::stol(param.string);
+            load_timeout = false;
+            do_timeout = true;
+        }
+        else if (option == "BLOCK")
+        {
+            load_timeout = true;
         }
     }
     if (keys.size() != ids.size())
     {
         return bad_cmd;
+    }
+
+    std::vector<size_t> firsts;
+    for (const auto & key : keys)
+    {
+        if (stream_exists(key))
+        {
+            firsts.push_back(do_timeout ? streams[key].size() : 0);
+        }
+        else
+        {
+            firsts.push_back(0);
+        }
+    }
+
+    if (do_timeout)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(timeout));
     }
 
     std::vector<std::string> res;
@@ -504,7 +535,7 @@ std::string xread(const RESP_data& resp, Rel_data& data)
         }
         else
         {
-            stream_repr.push_back(stream_range_arr(keys[i], ids[i], "+", true));
+            stream_repr.push_back(stream_range_arr(keys[i], ids[i], "+", firsts[i], true));
         }
         res.push_back(array(stream_repr));
     }
