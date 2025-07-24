@@ -535,11 +535,19 @@ std::string xread(const RESP_data& resp, Rel_data& data)
         }
         else
         {
+            if (streams[keys[i]].size() == firsts[i])
+            {
+                continue;
+            }
             stream_repr.push_back(stream_range_arr(keys[i], ids[i], "+", firsts[i], true));
         }
         res.push_back(array(stream_repr));
     }
 
+    if (res.empty())
+    {
+        return null_bulk_string;
+    }
     return array(res);
 }
 
