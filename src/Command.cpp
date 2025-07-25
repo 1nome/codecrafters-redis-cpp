@@ -613,11 +613,13 @@ std::string incr(const RESP_data& resp, Rel_data& data)
 }
 
 std::queue<RESP_data> transaction_queue;
+std::vector<std::string> transaction_responses;
 
 std::string multi(const RESP_data& resp, Rel_data& data)
 {
     data.repeat = false;
     data.queue_commands = true;
+    transaction_responses.clear();
     return OK_simple;
 }
 
@@ -629,7 +631,14 @@ std::string exec(const RESP_data& resp, Rel_data& data)
         return simple_error("ERR EXEC without MULTI");
     }
     data.queue_commands = false;
-    return OK_simple;
+
+    while (!transaction_queue.empty())
+    {
+        transaction_responses.push_back(process_command(transaction_queue.front(), data));
+        transaction_queue.pop();
+    }
+
+    return array(transaction_responses);
 }
 
 const std::unordered_map<std::string, Cmd> cmd_map = {
@@ -660,6 +669,12 @@ std::string process_command(const RESP_data& resp, Rel_data& data)
     {
         // temp value
         return bad_cmd;
+    }
+
+    if (data.queue_commands && cmd != "EXEC")
+    {
+        transaction_queue.push(resp);
+        return simple_string("QUEUED");
     }
     return cmd_map.at(cmd)(resp, data);
 }

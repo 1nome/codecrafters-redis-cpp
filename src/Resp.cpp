@@ -60,6 +60,7 @@ void copy_data(const RESP_data& src, RESP_data& dest)
     case Bulk_error:
     case Big_number:
     case Verbatim_string:
+        new (&dest.string) std::string;
         dest.string = src.string;
         break;
     case Array:
@@ -67,6 +68,7 @@ void copy_data(const RESP_data& src, RESP_data& dest)
     case Attribute:
     case Set:
     case Push:
+        new (&dest.array) std::vector<RESP_data>;
         dest.array = src.array;
         break;
     }
