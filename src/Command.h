@@ -14,6 +14,7 @@ struct Rel_data
     size_t local_offset = top_offset();
     bool is_replica = false;
     bool respond = false;
+    bool queue_commands = false;
 };
 
 std::string process_command(const RESP_data& resp, Rel_data& data);

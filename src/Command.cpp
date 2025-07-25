@@ -589,6 +589,7 @@ std::string incr(const RESP_data& resp, Rel_data& data)
         return bad_cmd;
     }
 
+    data.repeat = true;
     const std::string key = resp.array[1].string;
     long long value = 1;
     if (key_vals().contains(key))
@@ -611,6 +612,26 @@ std::string incr(const RESP_data& resp, Rel_data& data)
     return integer(value);
 }
 
+std::queue<RESP_data> transaction_queue;
+
+std::string multi(const RESP_data& resp, Rel_data& data)
+{
+    data.repeat = false;
+    data.queue_commands = true;
+    return OK_simple;
+}
+
+std::string exec(const RESP_data& resp, Rel_data& data)
+{
+    data.repeat = false;
+    if (!data.queue_commands)
+    {
+        return simple_error("ERR EXEC without MULTI");
+    }
+    data.queue_commands = false;
+    return OK_simple;
+}
+
 const std::unordered_map<std::string, Cmd> cmd_map = {
     {"PING", ping},
     {"ECHO", echo},
@@ -626,7 +647,9 @@ const std::unordered_map<std::string, Cmd> cmd_map = {
     {"XADD", xadd},
     {"XRANGE", xrange},
     {"XREAD", xread},
-    {"INCR", incr}
+    {"INCR", incr},
+    {"MULTI", multi},
+    {"EXEC", exec}
 };
 
 std::string process_command(const RESP_data& resp, Rel_data& data)
