@@ -612,14 +612,11 @@ std::string incr(const RESP_data& resp, Rel_data& data)
     return integer(value);
 }
 
-std::queue<RESP_data> transaction_queue;
-std::vector<std::string> transaction_responses;
-
 std::string multi(const RESP_data& resp, Rel_data& data)
 {
     data.repeat = false;
     data.queue_commands = true;
-    transaction_responses.clear();
+    data.transaction_responses.clear();
     return OK_simple;
 }
 
@@ -632,13 +629,13 @@ std::string exec(const RESP_data& resp, Rel_data& data)
     }
     data.queue_commands = false;
 
-    while (!transaction_queue.empty())
+    while (!data.transaction_queue.empty())
     {
-        transaction_responses.push_back(process_command(transaction_queue.front(), data));
-        transaction_queue.pop();
+        data.transaction_responses.push_back(process_command(data.transaction_queue.front(), data));
+        data.transaction_queue.pop();
     }
 
-    return array(transaction_responses);
+    return array(data.transaction_responses);
 }
 
 std::string discard(const RESP_data& resp, Rel_data& data)
@@ -651,7 +648,7 @@ std::string discard(const RESP_data& resp, Rel_data& data)
     data.queue_commands = false;
 
     std::queue<RESP_data> empty_queue;
-    std::swap(transaction_queue, empty_queue);
+    std::swap(data.transaction_queue, empty_queue);
 
     return OK_simple;
 }
@@ -689,7 +686,7 @@ std::string process_command(const RESP_data& resp, Rel_data& data)
 
     if (data.queue_commands && cmd != "EXEC" && cmd != "DISCARD")
     {
-        transaction_queue.push(resp);
+        data.transaction_queue.push(resp);
         return simple_string("QUEUED");
     }
     return cmd_map.at(cmd)(resp, data);
