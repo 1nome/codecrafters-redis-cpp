@@ -641,6 +641,21 @@ std::string exec(const RESP_data& resp, Rel_data& data)
     return array(transaction_responses);
 }
 
+std::string discard(const RESP_data& resp, Rel_data& data)
+{
+    data.repeat = false;
+    if (!data.queue_commands)
+    {
+        return simple_error("ERR DISCARD without MULTI");
+    }
+    data.queue_commands = false;
+
+    std::queue<RESP_data> empty_queue;
+    std::swap(transaction_queue, empty_queue);
+
+    return OK_simple;
+}
+
 const std::unordered_map<std::string, Cmd> cmd_map = {
     {"PING", ping},
     {"ECHO", echo},
@@ -658,7 +673,8 @@ const std::unordered_map<std::string, Cmd> cmd_map = {
     {"XREAD", xread},
     {"INCR", incr},
     {"MULTI", multi},
-    {"EXEC", exec}
+    {"EXEC", exec},
+    {"DISCARD", discard}
 };
 
 std::string process_command(const RESP_data& resp, Rel_data& data)
@@ -671,7 +687,7 @@ std::string process_command(const RESP_data& resp, Rel_data& data)
         return bad_cmd;
     }
 
-    if (data.queue_commands && cmd != "EXEC")
+    if (data.queue_commands && cmd != "EXEC" && cmd != "DISCARD")
     {
         transaction_queue.push(resp);
         return simple_string("QUEUED");
