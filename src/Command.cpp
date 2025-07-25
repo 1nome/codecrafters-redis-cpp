@@ -582,6 +582,35 @@ std::string xread(const RESP_data& resp, Rel_data& data)
     return array(res);
 }
 
+std::string incr(const RESP_data& resp, Rel_data& data)
+{
+    if (resp.array.size() < 2)
+    {
+        return bad_cmd;
+    }
+
+    const std::string key = resp.array[1].string;
+    long long value = 1;
+    if (key_vals().contains(key))
+    {
+        try
+        {
+            value = std::stoll(key_vals()[key]) + 1;
+        }
+        catch (const std::invalid_argument& e)
+        {
+            return simple_error("ERR value is not an integer or out of range");
+        }
+        catch (const std::out_of_range& e)
+        {
+            return simple_error("ERR value is not an integer or out of range");
+        }
+    }
+    key_vals()[key] = std::to_string(value);
+
+    return integer(value);
+}
+
 const std::unordered_map<std::string, Cmd> cmd_map = {
     {"PING", ping},
     {"ECHO", echo},
@@ -596,7 +625,8 @@ const std::unordered_map<std::string, Cmd> cmd_map = {
     {"TYPE", type},
     {"XADD", xadd},
     {"XRANGE", xrange},
-    {"XREAD", xread}
+    {"XREAD", xread},
+    {"INCR", incr}
 };
 
 std::string process_command(const RESP_data& resp, Rel_data& data)
