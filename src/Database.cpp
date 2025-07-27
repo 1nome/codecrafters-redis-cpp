@@ -22,6 +22,9 @@ std::unordered_map<std::string, std::vector<Stream_entry>> streams;
 
 std::mutex streams_lock;
 
+std::unordered_map<std::string, std::list<std::string>> lists;
+std::mutex lists_lock;
+
 enum Special_type
 {
     None,

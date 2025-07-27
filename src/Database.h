@@ -4,6 +4,7 @@
 #include <string>
 #include <unordered_map>
 #include <chrono>
+#include <list>
 #include <mutex>
 
 typedef std::chrono::time_point<std::chrono::system_clock> Timestamp;
@@ -28,6 +29,9 @@ bool stream_empty(const std::string& stream_key);
 
 extern std::mutex streams_lock;
 extern std::unordered_map<std::string, std::vector<Stream_entry>> streams;
+
+extern std::unordered_map<std::string, std::list<std::string>> lists;
+extern std::mutex lists_lock;
 
 void read_rdb(std::basic_istream<char>* s = nullptr);
 

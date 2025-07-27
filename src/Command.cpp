@@ -653,6 +653,83 @@ std::string discard(const RESP_data& resp, Rel_data& data)
     return OK_simple;
 }
 
+std::string rpush(const RESP_data& resp, Rel_data& data)
+{
+    if (resp.array.size() < 3)
+    {
+        return bad_cmd;
+    }
+
+    data.repeat = true;
+    const std::lock_guard lock(lists_lock);
+    std::list<std::string>& list = lists[resp.array[1].string];
+    for (int i = 2; i < resp.array.size(); i++)
+    {
+        list.push_back(resp.array[i].string);
+    }
+
+    return integer(static_cast<long>(list.size()));
+}
+
+std::string lrange(const RESP_data& resp, Rel_data& data)
+{
+    data.repeat = false;
+    if (resp.array.size() < 4)
+    {
+        return bad_cmd;
+    }
+
+    const std::lock_guard lock(lists_lock);
+    if (!lists.contains(resp.array[1].string))
+    {
+        return empty_array;
+    }
+    const std::list<std::string>& list = lists[resp.array[1].string];
+    const long list_len = static_cast<long>(list.size());
+
+    long start = std::stoll(resp.array[2].string), end = std::stoll(resp.array[3].string);
+    if (start < 0)
+    {
+        start += list_len;
+        if (start < 0)
+        {
+            start = 0;
+        }
+    }
+    if (end < 0)
+    {
+        end += list_len;
+    }
+    if (end > list_len)
+    {
+        end = list_len;
+    }
+
+    if (start > end || start >= list_len || end < 0)
+    {
+        return empty_array;
+    }
+
+    std::vector<std::string> res;
+    size_t i = 0;
+    for (auto & it : list)
+    {
+        if (i < start)
+        {
+            i++;
+            continue;
+        }
+        if (i > end)
+        {
+            break;
+        }
+        res.push_back(bulk_string(it));
+        i++;
+    }
+
+    return array(res);
+}
+
 const std::unordered_map<std::string, Cmd> cmd_map = {
     {"PING", ping},
     {"ECHO", echo},
@@ -671,7 +748,9 @@ const std::unordered_map<std::string, Cmd> cmd_map = {
     {"INCR", incr},
     {"MULTI", multi},
     {"EXEC", exec},
-    {"DISCARD", discard}
+    {"DISCARD", discard},
+    {"RPUSH", rpush},
+    {"LRANGE", lrange}
 };
 
 std::string process_command(const RESP_data& resp, Rel_data& data)

@@ -9,6 +9,7 @@ constexpr std::string CRLF = "\r\n";
 constexpr std::string OK_simple = "+OK\r\n";
 constexpr std::string null_bulk_string = "$-1\r\n";
 constexpr std::string null_array = "*-1\r\n";
+constexpr std::string empty_array = "*0\r\n";
 constexpr std::string null = "_\r\n";
 
 std::string simple_string(const std::string& content);
