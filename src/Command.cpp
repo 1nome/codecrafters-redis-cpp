@@ -856,6 +856,7 @@ std::string blpop(const RESP_data& resp, Rel_data& data)
         return array({bulk_string(key), bulk_string(ret)});
     }
 
+    done();
     return null_bulk_string;
 }
 
