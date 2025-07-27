@@ -671,6 +671,24 @@ std::string rpush(const RESP_data& resp, Rel_data& data)
     return integer(static_cast<long>(list.size()));
 }
 
+std::string lpush(const RESP_data& resp, Rel_data& data)
+{
+    if (resp.array.size() < 3)
+    {
+        return bad_cmd;
+    }
+
+    data.repeat = true;
+    const std::lock_guard lock(lists_lock);
+    std::list<std::string>& list = lists[resp.array[1].string];
+    for (int i = 2; i < resp.array.size(); i++)
+    {
+        list.push_front(resp.array[i].string);
+    }
+
+    return integer(static_cast<long>(list.size()));
+}
+
 std::string lrange(const RESP_data& resp, Rel_data& data)
 {
     data.repeat = false;
@@ -730,6 +748,24 @@ std::string lrange(const RESP_data& resp, Rel_data& data)
     return array(res);
 }
 
+std::string llen(const RESP_data& resp, Rel_data& data)
+{
+    data.repeat = false;
+    if (resp.array.size() < 2)
+    {
+        return bad_cmd;
+    }
+
+    const std::lock_guard lock(lists_lock);
+    if (!lists.contains(resp.array[1].string))
+    {
+        return integer(0);
+    }
+    const std::list<std::string>& list = lists[resp.array[1].string];
+
+    return integer(static_cast<long>(list.size()));
+}
+
 const std::unordered_map<std::string, Cmd> cmd_map = {
     {"PING", ping},
     {"ECHO", echo},
@@ -750,7 +786,9 @@ const std::unordered_map<std::string, Cmd> cmd_map = {
     {"EXEC", exec},
     {"DISCARD", discard},
     {"RPUSH", rpush},
-    {"LRANGE", lrange}
+    {"LRANGE", lrange},
+    {"LPUSH", lpush},
+    {"LLEN", llen}
 };
 
 std::string process_command(const RESP_data& resp, Rel_data& data)
