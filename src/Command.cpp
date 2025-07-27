@@ -766,6 +766,40 @@ std::string llen(const RESP_data& resp, Rel_data& data)
     return integer(static_cast<long>(list.size()));
 }
 
+std::string lpop(const RESP_data& resp, Rel_data& data)
+{
+    if (resp.array.size() < 2)
+    {
+        return bad_cmd;
+    }
+
+    const std::lock_guard lock(lists_lock);
+    if (!lists.contains(resp.array[1].string))
+    {
+        return null_bulk_string;
+    }
+    std::list<std::string>& list = lists[resp.array[1].string];
+    if (list.empty())
+    {
+        return null_bulk_string;
+    }
+
+    if (resp.array.size() > 2)
+    {
+        std::vector<std::string> res;
+        const size_t n = std::stoll(resp.array[2].string);
+        for (size_t i = 0; i < n; i++)
+        {
+            res.push_back(bulk_string(list.front()));
+            list.pop_front();
+        }
+        return array(res);
+    }
+    const std::string ret = list.front();
+    list.pop_front();
+    return bulk_string(ret);
+}
+
 const std::unordered_map<std::string, Cmd> cmd_map = {
     {"PING", ping},
     {"ECHO", echo},
@@ -788,7 +822,8 @@ const std::unordered_map<std::string, Cmd> cmd_map = {
     {"RPUSH", rpush},
     {"LRANGE", lrange},
     {"LPUSH", lpush},
-    {"LLEN", llen}
+    {"LLEN", llen},
+    {"LPOP", lpop}
 };
 
 std::string process_command(const RESP_data& resp, Rel_data& data)
