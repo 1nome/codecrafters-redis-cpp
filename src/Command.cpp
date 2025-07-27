@@ -800,6 +800,65 @@ std::string lpop(const RESP_data& resp, Rel_data& data)
     return bulk_string(ret);
 }
 
+size_t blpop_counter = 0, blpop_current = 0;
+std::mutex blpop_lock;
+
+size_t request_pop()
+{
+    std::lock_guard lock(blpop_lock);
+    return blpop_counter++;
+}
+bool is_turn(size_t val)
+{
+    std::lock_guard lock(blpop_lock);
+    return val == blpop_current;
+}
+void done()
+{
+    std::lock_guard lock(blpop_lock);
+    blpop_current++;
+}
+
+std::string blpop(const RESP_data& resp, Rel_data& data)
+{
+    if (resp.array.size() < 3)
+    {
+        return bad_cmd;
+    }
+
+    const size_t turn = request_pop();
+    const std::string key = resp.array[1].string;
+
+    lists_lock.lock();
+    std::list<std::string>& list = lists[key];
+    lists_lock.unlock();
+
+    const double timeout = std::stod(resp.array[2].string);
+
+    const auto millis = std::chrono::milliseconds(static_cast<int>(timeout * 1000));
+    const auto start = std::chrono::system_clock::now();
+    while (timeout == 0 ? true : std::chrono::system_clock::now() - start < millis)
+    {
+        if (!is_turn(turn))
+        {
+            std::this_thread::yield();
+            continue;
+        }
+        if (list.empty())
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            continue;
+        }
+        const std::lock_guard lock(lists_lock);
+        const std::string ret = list.front();
+        list.pop_front();
+        done();
+        return array({bulk_string(key), bulk_string(ret)});
+    }
+
+    return null_bulk_string;
+}
+
 const std::unordered_map<std::string, Cmd> cmd_map = {
     {"PING", ping},
     {"ECHO", echo},
@@ -823,7 +882,8 @@ const std::unordered_map<std::string, Cmd> cmd_map = {
     {"LRANGE", lrange},
     {"LPUSH", lpush},
     {"LLEN", llen},
-    {"LPOP", lpop}
+    {"LPOP", lpop},
+    {"BLPOP", blpop}
 };
 
 std::string process_command(const RESP_data& resp, Rel_data& data)
