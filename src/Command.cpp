@@ -773,6 +773,7 @@ std::string lpop(const RESP_data& resp, Rel_data& data)
         return bad_cmd;
     }
 
+    data.repeat = true;
     const std::lock_guard lock(lists_lock);
     if (!lists.contains(resp.array[1].string))
     {
@@ -826,6 +827,7 @@ std::string blpop(const RESP_data& resp, Rel_data& data)
         return bad_cmd;
     }
 
+    data.repeat = true;
     const size_t turn = request_pop();
     const std::string key = resp.array[1].string;
 
