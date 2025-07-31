@@ -126,6 +126,10 @@ class Rel
         remove_command();
         continue;
       }
+      if (!data.subscribed_channels.empty())
+      {
+
+      }
 
       const long n = recv(client_fd, in_buffer, buffer_size, 0);
       if (n == 0)

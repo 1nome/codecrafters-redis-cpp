@@ -1,6 +1,7 @@
 #ifndef COMMAND_H
 #define COMMAND_H
 
+#include <set>
 #include <string>
 
 #include "Replication.h"
@@ -17,6 +18,7 @@ struct Rel_data
     bool queue_commands = false;
     std::queue<RESP_data> transaction_queue;
     std::vector<std::string> transaction_responses;
+    std::set<std::string> subscribed_channels;
 };
 
 std::string process_command(const RESP_data& resp, Rel_data& data);

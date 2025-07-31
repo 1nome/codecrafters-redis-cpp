@@ -2,6 +2,7 @@
 #include "Resp.h"
 #include "Database.h"
 #include "Replication.h"
+#include "Channels.h"
 
 #include <unordered_map>
 #include <algorithm>
@@ -20,6 +21,12 @@ void to_upper(std::string& s)
 std::string ping(const RESP_data& resp, Rel_data& data)
 {
     data.repeat = false;
+
+    if (!data.subscribed_channels.empty())
+    {
+        return array({bulk_string("pong"), empty_bulk_string});
+    }
+
     if (resp.array.size() > 1)
     {
         return bulk_string(resp.array[1].string);
@@ -862,6 +869,26 @@ std::string blpop(const RESP_data& resp, Rel_data& data)
     return null_bulk_string;
 }
 
+std::string sub(const RESP_data& resp, Rel_data& data)
+{
+    data.repeat = false;
+    if (resp.array.size() < 2)
+    {
+        return bad_cmd;
+    }
+
+    const std::string& ch = resp.array[1].string;
+    if (!data.subscribed_channels.contains(ch))
+    {
+        subscribe(ch);
+        data.subscribed_channels.insert(ch);
+    }
+
+    return array({
+        bulk_string("subscribe"), bulk_string(ch), integer(static_cast<long>(data.subscribed_channels.size()))
+    });
+}
+
 const std::unordered_map<std::string, Cmd> cmd_map = {
     {"PING", ping},
     {"ECHO", echo},
@@ -886,13 +913,29 @@ const std::unordered_map<std::string, Cmd> cmd_map = {
     {"LPUSH", lpush},
     {"LLEN", llen},
     {"LPOP", lpop},
-    {"BLPOP", blpop}
+    {"BLPOP", blpop},
+    {"SUBSCRIBE", sub}
+};
+
+const std::unordered_map<std::string, Cmd> subscribed_cmd_map = {
+    {"SUBSCRIBE", sub},
+    {"PING", ping}
 };
 
 std::string process_command(const RESP_data& resp, Rel_data& data)
 {
     std::string cmd = resp.array[0].string;
     to_upper(cmd);
+
+    if (!data.subscribed_channels.empty())
+    {
+        if (!subscribed_cmd_map.contains(cmd))
+        {
+            return simple_error("ERR Can't execute '" + cmd + "' when one or more subscriptions exist");
+        }
+        return subscribed_cmd_map.at(cmd)(resp, data);
+    }
+
     if (!cmd_map.contains(cmd))
     {
         // temp value
