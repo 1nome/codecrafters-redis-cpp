@@ -889,6 +889,16 @@ std::string sub(const RESP_data& resp, Rel_data& data)
     });
 }
 
+std::string pub(const RESP_data& resp, Rel_data& data)
+{
+    if (resp.array.size() < 3)
+    {
+        return bad_cmd;
+    }
+    publish(resp.array[1].string, bulk_string(resp.array[2].string));
+    return integer(static_cast<long>(n_subscribers(resp.array[1].string)));
+}
+
 const std::unordered_map<std::string, Cmd> cmd_map = {
     {"PING", ping},
     {"ECHO", echo},
@@ -914,7 +924,8 @@ const std::unordered_map<std::string, Cmd> cmd_map = {
     {"LLEN", llen},
     {"LPOP", lpop},
     {"BLPOP", blpop},
-    {"SUBSCRIBE", sub}
+    {"SUBSCRIBE", sub},
+    {"PUBLISH", pub}
 };
 
 const std::unordered_map<std::string, Cmd> subscribed_cmd_map = {
