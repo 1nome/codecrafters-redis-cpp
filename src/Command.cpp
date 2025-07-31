@@ -22,7 +22,7 @@ std::string ping(const RESP_data& resp, Rel_data& data)
 {
     data.repeat = false;
 
-    if (!data.subscribed_channels.empty())
+    if (data.subscribed)
     {
         return array({bulk_string("pong"), empty_bulk_string});
     }
@@ -877,7 +877,12 @@ std::string sub(const RESP_data& resp, Rel_data& data)
         return bad_cmd;
     }
 
-    const std::string& ch = resp.array[1].string;
+    if (!data.subscribed)
+    {
+        data.set_nonblocking = true;
+    }
+    data.subscribed = true;
+    const std::string ch = bulk_string(resp.array[1].string);
     if (!data.subscribed_channels.contains(ch))
     {
         subscribe(ch);
@@ -885,7 +890,7 @@ std::string sub(const RESP_data& resp, Rel_data& data)
     }
 
     return array({
-        bulk_string("subscribe"), bulk_string(ch), integer(static_cast<long>(data.subscribed_channels.size()))
+        subscribe_bulk, ch, integer(static_cast<long>(data.subscribed_channels.size()))
     });
 }
 
@@ -895,8 +900,30 @@ std::string pub(const RESP_data& resp, Rel_data& data)
     {
         return bad_cmd;
     }
-    publish(resp.array[1].string, bulk_string(resp.array[2].string));
-    return integer(static_cast<long>(n_subscribers(resp.array[1].string)));
+    data.repeat = true;
+    const std::string ch = bulk_string(resp.array[1].string);
+    publish(ch, bulk_string(resp.array[2].string));
+    return integer(static_cast<long>(n_subscribers(ch)));
+}
+
+std::string unsub(const RESP_data& resp, Rel_data& data)
+{
+    data.repeat = false;
+    if (resp.array.size() < 2)
+    {
+        return bulk_string("not supported yet :)");
+    }
+
+    const std::string ch = bulk_string(resp.array[1].string);
+    if (data.subscribed_channels.contains(ch))
+    {
+        unsubscribe(ch);
+        data.subscribed_channels.erase(ch);
+    }
+
+    return array({
+        unsubscribe_bulk, ch, integer(static_cast<long>(data.subscribed_channels.size()))
+    });
 }
 
 const std::unordered_map<std::string, Cmd> cmd_map = {
@@ -930,7 +957,8 @@ const std::unordered_map<std::string, Cmd> cmd_map = {
 
 const std::unordered_map<std::string, Cmd> subscribed_cmd_map = {
     {"SUBSCRIBE", sub},
-    {"PING", ping}
+    {"PING", ping},
+    {"UNSUBSCRIBE", unsub}
 };
 
 std::string process_command(const RESP_data& resp, Rel_data& data)
@@ -938,7 +966,7 @@ std::string process_command(const RESP_data& resp, Rel_data& data)
     std::string cmd = resp.array[0].string;
     to_upper(cmd);
 
-    if (!data.subscribed_channels.empty())
+    if (data.subscribed)
     {
         if (!subscribed_cmd_map.contains(cmd))
         {

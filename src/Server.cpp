@@ -2,7 +2,6 @@
 #include <iostream>
 #include <string>
 #include <cstring>
-#include <math.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -14,6 +13,7 @@
 #include "Command.h"
 #include "Resp.h"
 #include "Args.h"
+#include "Channels.h"
 #include "Database.h"
 #include "Replication.h"
 
@@ -126,15 +126,46 @@ class Rel
         remove_command();
         continue;
       }
-      if (!data.subscribed_channels.empty())
+      if (data.subscribed)
       {
-
+        bool sleep = true;
+        for (auto& channel : data.subscribed_channels)
+        {
+          if (std::string msg = get_message(channel); !msg.empty())
+          {
+            response = array({message_bulk, channel, msg});
+            send(client_fd, response.c_str(), response.length(), 0);
+            sleep = false;
+          }
+        }
+        if (sleep)
+        {
+          std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+      }
+      if (data.set_nonblocking)
+      {
+        // a bit of a hacky solution
+        timeval tv{0, 1000};
+        if (setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO_NEW, &tv, sizeof(tv)) < 0) {
+          const int err = errno;
+          std::cerr << "Setsockopt failed:\n" << strerror(err) << "\n";
+        }
+        data.set_nonblocking = false;
       }
 
       const long n = recv(client_fd, in_buffer, buffer_size, 0);
       if (n == 0)
       {
+        if (data.subscribed)
+        {
+          unsubscribe(data.subscribed_channels);
+        }
         break;
+      }
+      if (n < 0)
+      {
+        continue;
       }
       in_stream.str({in_buffer, static_cast<size_t>(n)});
       in_stream.clear();

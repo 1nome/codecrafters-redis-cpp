@@ -20,7 +20,7 @@ void publish(const std::string& channel, const std::string& message)
     channels[channel].push(message);
 }
 
-std::string get(const std::string& channel)
+std::string get_message(const std::string& channel)
 {
     const std::lock_guard lock(channels_lock);
     const std::lock_guard lock2(subscribers_lock);
@@ -71,6 +71,14 @@ void unsubscribe(const std::string& channel)
     if (!total)
     {
         channels.erase(channel);
+    }
+}
+
+void unsubscribe(const std::set<std::string>& channels)
+{
+    for (const auto& channel : channels)
+    {
+        unsubscribe(channel);
     }
 }
 

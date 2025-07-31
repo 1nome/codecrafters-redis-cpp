@@ -19,6 +19,8 @@ struct Rel_data
     std::queue<RESP_data> transaction_queue;
     std::vector<std::string> transaction_responses;
     std::set<std::string> subscribed_channels;
+    bool subscribed = false;
+    bool set_nonblocking = false;
 };
 
 std::string process_command(const RESP_data& resp, Rel_data& data);
