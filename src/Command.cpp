@@ -992,7 +992,7 @@ std::string zrange(const RESP_data& resp, Rel_data& data)
     {
         return empty_array;
     }
-    auto& [set, map] = zsets[resp.array[1].string];
+    const auto& [set, map] = zsets[resp.array[1].string];
     const long set_len = static_cast<long>(map.size());
 
     long start = std::stoll(resp.array[2].string), end = std::stoll(resp.array[3].string);
@@ -1020,7 +1020,7 @@ std::string zrange(const RESP_data& resp, Rel_data& data)
 
     std::vector<std::string> res;
     size_t i = 0;
-    for (auto & it : set)
+    for (const auto & [score, member] : set)
     {
         if (i < start)
         {
@@ -1031,11 +1031,52 @@ std::string zrange(const RESP_data& resp, Rel_data& data)
         {
             break;
         }
-        res.push_back(bulk_string(it.member));
+        res.push_back(bulk_string(member));
         i++;
     }
 
     return array(res);
+}
+
+std::string zcard(const RESP_data& resp, Rel_data& data)
+{
+    data.repeat = false;
+    if (resp.array.size() < 2)
+    {
+        return bad_cmd;
+    }
+
+    const std::lock_guard lock(zsets_lock);
+    if (!zsets.contains(resp.array[1].string))
+    {
+        return integer(0);
+    }
+    const auto& [set, map] = zsets[resp.array[1].string];
+
+    return integer(static_cast<long>(map.size()));
+}
+
+std::string zscore(const RESP_data& resp, Rel_data& data)
+{
+    if (resp.array.size() < 3)
+    {
+        return bad_cmd;
+    }
+
+    data.repeat = false;
+    const std::lock_guard lock(zsets_lock);
+    if (!zsets.contains(resp.array[1].string))
+    {
+        return null_bulk_string;
+    }
+    auto& [set, map] = zsets[resp.array[1].string];
+
+    const std::string key = resp.array[2].string;
+    if (!map.contains(key))
+    {
+        return null_bulk_string;
+    }
+    return bulk_string(std::to_string(map[key]));
 }
 
 const std::unordered_map<std::string, Cmd> cmd_map = {
@@ -1067,7 +1108,9 @@ const std::unordered_map<std::string, Cmd> cmd_map = {
     {"PUBLISH", pub},
     {"ZADD", zadd},
     {"ZRANK", zrank},
-    {"ZRANGE", zrange}
+    {"ZRANGE", zrange},
+    {"ZCARD", zcard},
+    {"ZSCORE", zscore}
 };
 
 const std::unordered_map<std::string, Cmd> subscribed_cmd_map = {
