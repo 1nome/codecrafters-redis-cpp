@@ -979,6 +979,65 @@ std::string zrank(const RESP_data& resp, Rel_data& data)
     return integer(std::distance(set.begin(), elem));
 }
 
+std::string zrange(const RESP_data& resp, Rel_data& data)
+{
+    data.repeat = false;
+    if (resp.array.size() < 4)
+    {
+        return bad_cmd;
+    }
+
+    const std::lock_guard lock(zsets_lock);
+    if (!zsets.contains(resp.array[1].string))
+    {
+        return empty_array;
+    }
+    auto& [set, map] = zsets[resp.array[1].string];
+    const long set_len = static_cast<long>(map.size());
+
+    long start = std::stoll(resp.array[2].string), end = std::stoll(resp.array[3].string);
+    if (start < 0)
+    {
+        start += set_len;
+        if (start < 0)
+        {
+            start = 0;
+        }
+    }
+    if (end < 0)
+    {
+        end += set_len;
+    }
+    if (end > set_len)
+    {
+        end = set_len;
+    }
+
+    if (start > end || start >= set_len || end < 0)
+    {
+        return empty_array;
+    }
+
+    std::vector<std::string> res;
+    size_t i = 0;
+    for (auto & it : set)
+    {
+        if (i < start)
+        {
+            i++;
+            continue;
+        }
+        if (i > end)
+        {
+            break;
+        }
+        res.push_back(bulk_string(it.member));
+        i++;
+    }
+
+    return array(res);
+}
+
 const std::unordered_map<std::string, Cmd> cmd_map = {
     {"PING", ping},
     {"ECHO", echo},
@@ -1007,7 +1066,8 @@ const std::unordered_map<std::string, Cmd> cmd_map = {
     {"SUBSCRIBE", sub},
     {"PUBLISH", pub},
     {"ZADD", zadd},
-    {"ZRANK", zrank}
+    {"ZRANK", zrank},
+    {"ZRANGE", zrange}
 };
 
 const std::unordered_map<std::string, Cmd> subscribed_cmd_map = {
