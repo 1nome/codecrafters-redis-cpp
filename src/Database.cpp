@@ -25,6 +25,9 @@ std::mutex streams_lock;
 std::unordered_map<std::string, std::list<std::string>> lists;
 std::mutex lists_lock;
 
+std::unordered_map<std::string, std::set<ZElement>> zsets;
+std::mutex zsets_lock;
+
 enum Special_type
 {
     None,
@@ -264,4 +267,21 @@ void read_rdb(std::basic_istream<char>* s)
         file->close();
         delete file;
     }
+}
+
+bool ZElement::operator<(const ZElement& rhs) const
+{
+    if (rhs.member == member)
+    {
+        return false;
+    }
+    if (rhs.score < score)
+    {
+        return true;
+    }
+    if (rhs.score == score && rhs.member < member)
+    {
+        return true;
+    }
+    return false;
 }

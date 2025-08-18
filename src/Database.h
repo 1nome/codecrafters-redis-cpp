@@ -6,6 +6,7 @@
 #include <chrono>
 #include <list>
 #include <mutex>
+#include <set>
 
 typedef std::chrono::time_point<std::chrono::system_clock> Timestamp;
 
@@ -34,5 +35,16 @@ extern std::unordered_map<std::string, std::list<std::string>> lists;
 extern std::mutex lists_lock;
 
 void read_rdb(std::basic_istream<char>* s = nullptr);
+
+struct ZElement
+{
+    double score;
+    std::string member;
+
+    bool operator<(const ZElement& rhs) const;
+};
+
+extern std::unordered_map<std::string, std::set<ZElement>> zsets;
+extern std::mutex zsets_lock;
 
 #endif //DATABASE_H

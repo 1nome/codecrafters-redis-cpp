@@ -926,6 +926,31 @@ std::string unsub(const RESP_data& resp, Rel_data& data)
     });
 }
 
+std::string zadd(const RESP_data& resp, Rel_data& data)
+{
+    if (resp.array.size() < 3)
+    {
+        return bad_cmd;
+    }
+
+    data.repeat = true;
+    const std::lock_guard lock(zsets_lock);
+    std::set<ZElement>& set = zsets[resp.array[1].string];
+    int n = 0;
+    for (int i = 2; i < resp.array.size() - 1; i += 2)
+    {
+        ZElement temp = {std::stod(resp.array[i].string), resp.array[i + 1].string};
+        if (set.contains(temp))
+        {
+            continue;
+        }
+        set.insert(std::move(temp));
+        n++;
+    }
+
+    return integer(n);
+}
+
 const std::unordered_map<std::string, Cmd> cmd_map = {
     {"PING", ping},
     {"ECHO", echo},
@@ -952,7 +977,8 @@ const std::unordered_map<std::string, Cmd> cmd_map = {
     {"LPOP", lpop},
     {"BLPOP", blpop},
     {"SUBSCRIBE", sub},
-    {"PUBLISH", pub}
+    {"PUBLISH", pub},
+    {"ZADD", zadd}
 };
 
 const std::unordered_map<std::string, Cmd> subscribed_cmd_map = {
