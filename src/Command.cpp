@@ -928,27 +928,55 @@ std::string unsub(const RESP_data& resp, Rel_data& data)
 
 std::string zadd(const RESP_data& resp, Rel_data& data)
 {
-    if (resp.array.size() < 3)
+    if (resp.array.size() < 4)
     {
         return bad_cmd;
     }
 
     data.repeat = true;
     const std::lock_guard lock(zsets_lock);
-    std::set<ZElement>& set = zsets[resp.array[1].string];
+    auto& [set, map] = zsets[resp.array[1].string];
     int n = 0;
     for (int i = 2; i < resp.array.size() - 1; i += 2)
     {
-        ZElement temp = {std::stod(resp.array[i].string), resp.array[i + 1].string};
-        if (set.contains(temp))
+        const std::string key = resp.array[i + 1].string;
+        const double score = std::stod(resp.array[i].string);
+        if (map.contains(key))
         {
-            continue;
+            set.erase({map[key], key});
+            n--;
         }
-        set.insert(std::move(temp));
+        set.emplace(score, key);
+        map[key] = score;
         n++;
     }
 
     return integer(n);
+}
+
+std::string zrank(const RESP_data& resp, Rel_data& data)
+{
+    if (resp.array.size() < 3)
+    {
+        return bad_cmd;
+    }
+
+    data.repeat = false;
+    const std::lock_guard lock(zsets_lock);
+    if (!zsets.contains(resp.array[1].string))
+    {
+        return null_bulk_string;
+    }
+    auto& [set, map] = zsets[resp.array[1].string];
+
+    const std::string key = resp.array[2].string;
+    if (!map.contains(key))
+    {
+        return null_bulk_string;
+    }
+    const auto elem = set.find({map[key], key});
+    // is unfortunately linear
+    return integer(std::distance(set.begin(), elem));
 }
 
 const std::unordered_map<std::string, Cmd> cmd_map = {
@@ -978,7 +1006,8 @@ const std::unordered_map<std::string, Cmd> cmd_map = {
     {"BLPOP", blpop},
     {"SUBSCRIBE", sub},
     {"PUBLISH", pub},
-    {"ZADD", zadd}
+    {"ZADD", zadd},
+    {"ZRANK", zrank}
 };
 
 const std::unordered_map<std::string, Cmd> subscribed_cmd_map = {

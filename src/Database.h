@@ -44,7 +44,10 @@ struct ZElement
     bool operator<(const ZElement& rhs) const;
 };
 
-extern std::unordered_map<std::string, std::set<ZElement>> zsets;
+typedef std::set<ZElement> Zset;
+typedef std::unordered_map<std::string, double> Zset_score;
+
+extern std::unordered_map<std::string, std::pair<Zset, Zset_score>> zsets;
 extern std::mutex zsets_lock;
 
 #endif //DATABASE_H
