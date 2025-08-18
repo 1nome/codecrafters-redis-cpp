@@ -956,12 +956,12 @@ std::string zadd(const RESP_data& resp, Rel_data& data)
 
 std::string zrank(const RESP_data& resp, Rel_data& data)
 {
+    data.repeat = false;
     if (resp.array.size() < 3)
     {
         return bad_cmd;
     }
 
-    data.repeat = false;
     const std::lock_guard lock(zsets_lock);
     if (!zsets.contains(resp.array[1].string))
     {
