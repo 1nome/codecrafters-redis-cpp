@@ -1076,7 +1076,7 @@ std::string zscore(const RESP_data& resp, Rel_data& data)
     {
         return null_bulk_string;
     }
-    return bulk_string(std::format("{}" ,map[key]));
+    return bulk_string(std::to_string(map[key]));
 }
 
 const std::unordered_map<std::string, Cmd> cmd_map = {
