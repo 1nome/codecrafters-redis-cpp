@@ -1079,6 +1079,30 @@ std::string zscore(const RESP_data& resp, Rel_data& data)
     return bulk_string(std::format("{}" ,map[key]));
 }
 
+std::string zrem(const RESP_data& resp, Rel_data& data)
+{
+    if (resp.array.size() < 3)
+    {
+        return bad_cmd;
+    }
+
+    data.repeat = true;
+    const std::lock_guard lock(zsets_lock);
+    auto& [set, map] = zsets[resp.array[1].string];
+    int n = 0;
+    for (int i = 2; i < resp.array.size(); i++)
+    {
+        if (const std::string key = resp.array[i].string; map.contains(key))
+        {
+            set.erase({map[key], key});
+            map.erase(key);
+            n++;
+        }
+    }
+
+    return integer(n);
+}
+
 const std::unordered_map<std::string, Cmd> cmd_map = {
     {"PING", ping},
     {"ECHO", echo},
@@ -1110,7 +1134,8 @@ const std::unordered_map<std::string, Cmd> cmd_map = {
     {"ZRANK", zrank},
     {"ZRANGE", zrange},
     {"ZCARD", zcard},
-    {"ZSCORE", zscore}
+    {"ZSCORE", zscore},
+    {"ZREM", zrem}
 };
 
 const std::unordered_map<std::string, Cmd> subscribed_cmd_map = {
